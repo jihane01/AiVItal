@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AIoT MedCore — AiVital Track 2026</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root {
+  --void:        #06080f;
+  --void-2:      #0b0f1c;
+  --void-3:      #111628;
+  --glass:       rgba(255,255,255,0.04);
+  --glass-border:rgba(255,255,255,0.09);
+  --glass-hover: rgba(255,255,255,0.08);
+  --plasma:      #2979ff;
+  --plasma-dim:  rgba(41,121,255,0.18);
+  --plasma-glow: rgba(41,121,255,0.45);
+  --cyan:        #00e5ff;
+  --cyan-dim:    rgba(0,229,255,0.15);
+  --cyan-glow:   rgba(0,229,255,0.5);
+  --pulse:       #ff4081;
+  --pulse-dim:   rgba(255,64,129,0.18);
+  --pulse-glow:  rgba(255,64,129,0.5);
+  --amber:       #ffab00;
+  --amber-dim:   rgba(255,171,0,0.18);
+  --ok:          #00e676;
+  --ok-dim:      rgba(0,230,118,0.14);
+  --warn:        #ffab00;
+  --warn-dim:    rgba(255,171,0,0.14);
+  --danger:      #ff1744;
+  --danger-dim:  rgba(255,23,68,0.14);
+  --text-primary: #e8f0ff;
+  --text-dim:     #7b8ab8;
+  --text-data:    #c0d6ff;
+  --font-display: 'Rajdhani', sans-serif;
+  --font-body:    'Exo 2', sans-serif;
+  --font-mono:    'Share Tech Mono', monospace;
+  --radius:   12px;
+  --radius-lg:18px;
+  --trans:    cubic-bezier(0.25,0.8,0.25,1);
+  /* Light mode overrides (toggled by class) */
+  --lm-void:        #f0f4ff;
+  --lm-void-2:      #e4eaf8;
+  --lm-void-3:      #d8e0f0;
+  --lm-glass:       rgba(0,0,0,0.03);
+  --lm-glass-border:rgba(0,0,0,0.10);
+  --lm-text-primary:#0d1b3e;
+  --lm-text-dim:    #4a5680;
+  --lm-text-data:   #1a3070;
+}
+
+body.light {
+  --void:        var(--lm-void);
+  --void-2:      var(--lm-void-2);
+  --void-3:      var(--lm-void-3);
+  --glass:       var(--lm-glass);
+  --glass-border:var(--lm-glass-border);
+  --text-primary:var(--lm-text-primary);
+  --text-dim:    var(--lm-text-dim);
+  --text-data:   var(--lm-text-data);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background 0.4s, color 0.4s;
+}
+
+body:not(.light)::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+}
+body:not(.light)::after {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 55% at 15% 20%, rgba(41,121,255,0.08) 0%, transparent 60%), radial-gradient(ellipse 50% 45% at 85% 80%, rgba(0,229,255,0.06) 0%, transparent 60%), radial-gradient(ellipse 40% 35% at 60% 10%, rgba(255,64,129,0.05) 0%, transparent 60%);
+}
+
+#app {
+  position: relative; z-index: 1; display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 260px 1fr 300px;
+  grid-template-areas: "header header header" "sidebar main alerts";
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+header {
+  grid-area: header; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; height: 62px;
+  background: rgba(6,8,15,0.85); border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100;
+  transition: background 0.4s;
+}
+body.light header { background: rgba(220,230,250,0.9); }
+
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-icon { width:36px;height:36px;border:2px solid var(--cyan);border-radius:8px;display:grid;place-items:center;box-shadow:0 0 12px var(--cyan-glow),inset 0 0 8px rgba(0,229,255,0.1);font-size:18px; }
+.logo-text { font-family:var(--font-display);font-size:1.35rem;font-weight:700;letter-spacing:2px;color:var(--text-primary); }
+.logo-text span { color:var(--cyan); }
+
+.header-status { display:flex;align-items:center;gap:20px; }
+.conn-badge { display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:0.7rem;color:var(--text-dim);padding:5px 12px;border:1px solid var(--glass-border);border-radius:20px;background:var(--glass); }
+.conn-dot { width:7px;height:7px;border-radius:50%;background:var(--danger);transition:background 0.4s;box-shadow:0 0 6px currentColor; }
+.conn-dot.live { background:var(--ok); }
+.header-time { font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim); }
+.patient-badge { display:flex;align-items:center;gap:10px;padding:5px 14px 5px 8px;background:var(--glass);border:1px solid var(--glass-border);border-radius:24px; }
+.avatar { width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--plasma),var(--cyan));display:grid;place-items:center;font-size:13px; }
+.patient-name { font-size:0.78rem;font-weight:600;color:var(--text-primary); }
+.patient-meta { font-size:0.65rem;color:var(--text-dim);font-family:var(--font-mono); }
+
+/* ── SIDEBAR ── */
+aside { grid-area:sidebar;background:rgba(6,8,15,0.6);border-right:1px solid var(--glass-border);padding:24px 16px;display:flex;flex-direction:column;gap:14px;backdrop-filter:blur(16px);overflow-y:auto; }
+body.light aside { background:rgba(210,220,240,0.7); }
+.sidebar-section-label { font-family:var(--font-mono);font-size:0.6rem;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;padding:0 8px;margin-top:6px; }
+.nav-item { display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:var(--radius);cursor:pointer;transition:background 0.25s var(--trans),border-color 0.25s;border:1px solid transparent;font-weight:400;font-size:0.85rem;color:var(--text-dim); }
+.nav-item:hover { background:var(--glass);color:var(--text-primary);border-color:var(--glass-border); }
+.nav-item.active { background:var(--cyan-dim);border-color:rgba(0,229,255,0.35);color:var(--cyan); }
+.nav-icon { font-size:1rem;width:20px;text-align:center; }
+
+.profile-card { background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius);padding:16px; }
+.profile-card h4 { font-family:var(--font-display);font-size:0.75rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:12px; }
+.profile-row { display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.78rem; }
+.profile-row:last-child { border-bottom:none; }
+.profile-key { color:var(--text-dim); }
+.profile-val { font-family:var(--font-mono);color:var(--text-data);font-weight:600; }
+
+.mqtt-form { display:flex;flex-direction:column;gap:8px; }
+.mqtt-field { display:flex;flex-direction:column;gap:4px; }
+.mqtt-field label { font-family:var(--font-mono);font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase; }
+.mqtt-field input { background:rgba(255,255,255,0.04);border:1px solid var(--glass-border);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:0.78rem;color:var(--text-primary);outline:none;transition:border-color 0.25s;width:100%; }
+.mqtt-field input:focus { border-color:var(--cyan);box-shadow:0 0 0 2px var(--cyan-dim); }
+.mqtt-connect-btn { width:100%;padding:10px;background:var(--cyan-dim);border:1px solid rgba(0,229,255,0.35);border-radius:8px;color:var(--cyan);font-family:var(--font-mono);font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;cursor:pointer;margin-top:4px;transition:background 0.25s,box-shadow 0.25s; }
+.mqtt-connect-btn:hover { background:rgba(0,229,255,0.25);box-shadow:0 0 16px var(--cyan-glow); }
+
+/* ── MAIN AREA ── */
+main#content-main {
+  grid-area: main; padding: 24px; display: flex; flex-direction: column; gap: 22px;
+  overflow-y: auto; max-height: calc(100vh - 62px);
+}
+
+/* ── CARD ── */
+.card { background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius-lg);backdrop-filter:blur(20px);transition:border-color 0.3s; }
+.card:hover { border-color:rgba(255,255,255,0.14); }
+.card-header { display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--glass-border); }
+.card-title { font-family:var(--font-display);font-weight:700;font-size:0.85rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--text-dim); }
+.card-badge { font-family:var(--font-mono);font-size:0.62rem;padding:3px 8px;border-radius:10px;border:1px solid; }
+.badge-live { color:var(--ok);border-color:var(--ok);background:var(--ok-dim); }
+.badge-cyan { color:var(--cyan);border-color:var(--cyan);background:var(--cyan-dim); }
+
+/* ── VITALS WIDGETS ── */
+.vitals-row { display:grid;grid-template-columns:repeat(3,1fr);gap:14px; }
+.widget { position:relative;border-radius:var(--radius-lg);padding:20px 16px;border:1px solid var(--glass-border);background:var(--glass);backdrop-filter:blur(16px);overflow:hidden;transition:transform 0.3s,border-color 0.3s; }
+.widget:hover { transform:translateY(-3px);border-color:rgba(255,255,255,0.15); }
+.widget::before { content:'';position:absolute;inset:0;border-radius:inherit;opacity:0;transition:opacity 0.3s; }
+.widget-heart::before  { background:radial-gradient(ellipse at 50% 120%,var(--pulse-dim),transparent 70%); }
+.widget-spo2::before   { background:radial-gradient(ellipse at 50% 120%,var(--cyan-dim),transparent 70%); }
+.widget-temp::before   { background:radial-gradient(ellipse at 50% 120%,var(--amber-dim),transparent 70%); }
+.widget:hover::before  { opacity:1; }
+.widget-label { font-family:var(--font-mono);font-size:0.6rem;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);margin-bottom:14px; }
+.widget-icon-area { display:flex;align-items:center;gap:10px;margin-bottom:8px; }
+.heart-icon { font-size:2rem;display:inline-block;color:var(--pulse);filter:drop-shadow(0 0 8px var(--pulse-glow));transform-origin:center; }
+.heart-icon.beating { animation:heartbeat var(--beat-duration,0.9s) ease-in-out infinite; }
+@keyframes heartbeat { 0%{transform:scale(1);}14%{transform:scale(1.22);}28%{transform:scale(1);}42%{transform:scale(1.12);}56%{transform:scale(1);}100%{transform:scale(1);} }
+.ecg-line { width:100%;height:36px;margin-bottom:8px;overflow:hidden; }
+.ecg-line svg { width:200%;height:100%;animation:ecg-scroll 2s linear infinite; }
+@keyframes ecg-scroll { from{transform:translateX(0);}to{transform:translateX(-50%);} }
+.widget-value { font-family:var(--font-mono);font-size:2rem;font-weight:700;line-height:1;letter-spacing:-1px; }
+.widget-unit { font-family:var(--font-mono);font-size:0.65rem;color:var(--text-dim);margin-left:4px; }
+.widget-sub { font-size:0.7rem;color:var(--text-dim);margin-top:6px;font-family:var(--font-mono); }
+.widget-status-bar { position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 var(--radius-lg) var(--radius-lg);transition:background 0.5s; }
+.c-pulse{color:var(--pulse);}.c-cyan{color:var(--cyan);}.c-amber{color:var(--amber);}.c-plasma{color:var(--plasma);}
+
+.gauge-wrap { display:flex;flex-direction:column;align-items:center;gap:8px; }
+.gauge-svg { width:100px;height:100px; }
+.gauge-track { fill:none;stroke:rgba(255,255,255,0.07);stroke-width:7; }
+.gauge-fill { fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1),stroke 0.5s;transform:rotate(-90deg);transform-origin:50% 50%; }
+.gauge-center-text { font-family:var(--font-mono);font-size:0.9rem;font-weight:700;fill:var(--text-primary);text-anchor:middle;dominant-baseline:central; }
+.gauge-unit-text { font-family:var(--font-mono);font-size:0.42rem;fill:var(--text-dim);text-anchor:middle; }
+
+.chart-container { position:relative;padding:20px;height:300px; }
+.chart-legend { display:flex;gap:20px;flex-wrap:wrap;padding:0 20px 14px; }
+.legend-item { display:flex;align-items:center;gap:7px;font-size:0.72rem;color:var(--text-dim);font-family:var(--font-mono); }
+.legend-dot { width:24px;height:3px;border-radius:2px; }
+.legend-dash { width:24px;height:0;border-bottom:2px dashed;opacity:0.7; }
+
+.zone-badges { display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px;border-top:1px solid var(--glass-border); }
+.zone-badge { display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-family:var(--font-mono);font-size:0.62rem; }
+.zb-ok     { background:var(--ok-dim);border:1px solid rgba(0,230,118,0.3);color:var(--ok); }
+.zb-warn   { background:var(--warn-dim);border:1px solid rgba(255,171,0,0.3);color:var(--warn); }
+.zb-danger { background:var(--danger-dim);border:1px solid rgba(255,23,68,0.3);color:var(--danger); }
+
+.env-row { display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:16px 20px; }
+.env-tile { background:rgba(255,255,255,0.025);border:1px solid var(--glass-border);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:4px; }
+.env-label { font-family:var(--font-mono);font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase; }
+.env-value { font-family:var(--font-mono);font-size:1.3rem;font-weight:700; }
+.env-icon  { font-size:1.2rem;margin-bottom:4px; }
+
+.ai-advice-tag { display:inline-flex;align-items:center;gap:6px;margin:0 20px 16px;padding:8px 14px;background:var(--plasma-dim);border:1px solid rgba(41,121,255,0.35);border-radius:var(--radius);font-size:0.78rem;color:var(--text-data);font-family:var(--font-mono); }
+.ai-tag-icon { color:var(--plasma);font-size:0.9rem; }
+
+.demo-bar { display:flex;gap:8px;flex-wrap:wrap;padding:16px 20px;border-top:1px solid var(--glass-border); }
+.demo-btn { padding:7px 14px;border-radius:8px;font-family:var(--font-mono);font-size:0.68rem;letter-spacing:1px;cursor:pointer;transition:all 0.25s;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim); }
+.demo-btn:hover { color:var(--text-primary);border-color:rgba(255,255,255,0.2); }
+.demo-btn.warn-btn { color:var(--warn);border-color:var(--warn-dim); }
+.demo-btn.danger-btn { color:var(--danger);border-color:var(--danger-dim); }
+
+/* ── ALERTS PANEL ── */
+.alerts-panel { grid-area:alerts;background:rgba(6,8,15,0.65);border-left:1px solid var(--glass-border);backdrop-filter:blur(16px);display:flex;flex-direction:column;max-height:calc(100vh - 62px);overflow:hidden; }
+body.light .alerts-panel { background:rgba(210,220,240,0.7); }
+.alerts-header { padding:18px 18px 14px;border-bottom:1px solid var(--glass-border);flex-shrink:0; }
+.alerts-title { font-family:var(--font-display);font-size:0.82rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--text-dim);display:flex;align-items:center;gap:8px; }
+.ai-dot { width:8px;height:8px;border-radius:50%;background:var(--plasma);box-shadow:0 0 8px var(--plasma-glow);animation:ai-pulse 2s ease-in-out infinite; }
+@keyframes ai-pulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+.alerts-scroll { flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px; }
+.alerts-scroll::-webkit-scrollbar { width:4px; }
+.alerts-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1);border-radius:2px; }
+
+.toast { border-radius:var(--radius);padding:12px 14px;border-left:3px solid;background:var(--glass);border-top:1px solid rgba(255,255,255,0.06);border-right:1px solid rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.06);animation:slideIn 0.4s var(--trans) both;position:relative;overflow:hidden; }
+@keyframes slideIn { from{opacity:0;transform:translateX(30px);}to{opacity:1;transform:translateX(0);} }
+.toast.ok     { border-left-color:var(--ok);background:linear-gradient(135deg,var(--ok-dim),var(--glass)); }
+.toast.warn   { border-left-color:var(--warn);background:linear-gradient(135deg,var(--warn-dim),var(--glass)); }
+.toast.danger { border-left-color:var(--danger);background:linear-gradient(135deg,var(--danger-dim),var(--glass)); }
+.toast.info   { border-left-color:var(--plasma);background:linear-gradient(135deg,var(--plasma-dim),var(--glass)); }
+.toast-level { display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px; }
+.toast.ok   .toast-level { color:var(--ok); }
+.toast.warn .toast-level { color:var(--warn); }
+.toast.danger .toast-level { color:var(--danger); }
+.toast.info   .toast-level { color:var(--plasma); }
+.toast-dot { width:6px;height:6px;border-radius:50%;background:currentColor; }
+.toast.danger .toast-dot { animation:blink 0.7s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1;}50%{opacity:0;} }
+.toast-msg { font-size:0.8rem;color:var(--text-primary);line-height:1.45; }
+.toast-time { font-family:var(--font-mono);font-size:0.6rem;color:var(--text-dim);margin-top:6px; }
+.toast-confidence { position:absolute;bottom:0;right:0;font-family:var(--font-mono);font-size:0.58rem;color:var(--text-dim);padding:4px 8px; }
+
+/* ── SOS OVERLAY ── */
+.sos-overlay { position:fixed;inset:0;z-index:9999;background:rgba(255,23,68,0.15);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:sos-flash 0.5s step-end infinite; }
+.sos-overlay.active { display:flex; }
+@keyframes sos-flash { 0%,100%{background:rgba(255,23,68,0.15);}50%{background:rgba(255,23,68,0.05);} }
+.sos-card { background:var(--void-2);border:2px solid var(--danger);border-radius:var(--radius-lg);padding:32px 40px;text-align:center;box-shadow:0 0 60px rgba(255,23,68,0.4);animation:sos-scale 0.3s var(--trans) both; }
+@keyframes sos-scale { from{transform:scale(0.8);opacity:0;}to{transform:scale(1);opacity:1;} }
+.sos-emoji { font-size:3rem; }
+.sos-title { font-family:var(--font-display);font-size:2rem;font-weight:700;color:var(--danger);margin:8px 0;letter-spacing:4px; }
+.sos-sub { font-family:var(--font-mono);font-size:0.8rem;color:var(--text-dim); }
+.sos-dismiss { margin-top:20px;padding:10px 28px;border:1px solid var(--danger);border-radius:8px;background:transparent;color:var(--danger);font-family:var(--font-mono);font-size:0.75rem;cursor:pointer;letter-spacing:2px;transition:background 0.25s; }
+.sos-dismiss:hover { background:var(--danger-dim); }
+
+/* ── VIEWS ── */
+.view { display:none; }
+.view.active { display:contents; }
+.view-page { display:none; flex-direction:column; gap:22px; }
+.view-page.active { display:flex; }
+
+/* ── HISTORY VIEW ── */
+.timeframe-btns { display:flex;gap:8px; }
+.tf-btn { padding:5px 14px;border-radius:20px;font-family:var(--font-mono);font-size:0.68rem;cursor:pointer;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);transition:all 0.2s; }
+.tf-btn.active,.tf-btn:hover { background:var(--cyan-dim);color:var(--cyan);border-color:rgba(0,229,255,0.35); }
+.event-table { width:100%;border-collapse:collapse; }
+.event-table th { font-family:var(--font-mono);font-size:0.62rem;letter-spacing:2px;color:var(--text-dim);padding:10px 14px;text-align:left;border-bottom:1px solid var(--glass-border);text-transform:uppercase; }
+.event-table td { font-family:var(--font-mono);font-size:0.73rem;color:var(--text-data);padding:9px 14px;border-bottom:1px solid rgba(255,255,255,0.04); }
+.event-table tr:hover td { background:rgba(255,255,255,0.03); }
+.event-table .tag { display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.6rem; }
+.tag-ok  { background:var(--ok-dim);color:var(--ok);border:1px solid rgba(0,230,118,0.25); }
+.tag-warn { background:var(--warn-dim);color:var(--warn);border:1px solid rgba(255,171,0,0.25); }
+.tag-danger { background:var(--danger-dim);color:var(--danger);border:1px solid rgba(255,23,68,0.25); }
+.tag-sos { background:rgba(255,23,68,0.25);color:#ff6d8a;border:1px solid rgba(255,23,68,0.4); }
+.tbl-wrap { overflow-x:auto;max-height:280px;overflow-y:auto; }
+.tbl-wrap::-webkit-scrollbar { width:4px;height:4px; }
+.tbl-wrap::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1);border-radius:2px; }
+
+/* ── AI ANALYSIS VIEW ── */
+.ai-dual-grid { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+.risk-badge { display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:var(--radius);font-family:var(--font-mono);font-size:0.85rem;font-weight:700; }
+.risk-low  { background:var(--ok-dim);border:1px solid rgba(0,230,118,0.4);color:var(--ok); }
+.risk-mod  { background:var(--warn-dim);border:1px solid rgba(255,171,0,0.4);color:var(--warn); }
+.risk-high { background:var(--danger-dim);border:1px solid rgba(255,23,68,0.4);color:var(--danger); }
+.conf-bar-track { background:rgba(255,255,255,0.07);border-radius:10px;height:8px;overflow:hidden;margin-top:8px; }
+.conf-bar-fill { height:100%;border-radius:10px;transition:width 1s cubic-bezier(0.4,0,0.2,1),background 0.5s; }
+.llm-terminal { background:rgba(0,0,0,0.35);border:1px solid var(--glass-border);border-radius:var(--radius);padding:18px;font-family:var(--font-mono);font-size:0.78rem;color:var(--text-data);line-height:1.7;max-height:320px;overflow-y:auto;white-space:pre-wrap; }
+.llm-terminal::-webkit-scrollbar { width:4px; }
+.llm-terminal::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1);border-radius:2px; }
+.llm-section { color:var(--cyan);font-weight:700; }
+.llm-bullet { color:var(--text-data); }
+.status-chip { display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-family:var(--font-mono);font-size:0.68rem; }
+.chip-critical { background:var(--danger-dim);color:var(--danger);border:1px solid rgba(255,23,68,0.4); }
+.chip-abnormal { background:var(--warn-dim);color:var(--warn);border:1px solid rgba(255,171,0,0.4); }
+.chip-stable   { background:var(--ok-dim);color:var(--ok);border:1px solid rgba(0,230,118,0.4); }
+.ai-refresh-btn { padding:7px 16px;border-radius:8px;font-family:var(--font-mono);font-size:0.68rem;cursor:pointer;border:1px solid rgba(0,229,255,0.35);background:var(--cyan-dim);color:var(--cyan);transition:all 0.25s; }
+.ai-refresh-btn:hover { background:rgba(0,229,255,0.25);box-shadow:0 0 12px var(--cyan-glow); }
+
+/* ── REPORTS VIEW ── */
+.reports-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:0 20px 20px; }
+.report-card { background:rgba(255,255,255,0.025);border:1px solid var(--glass-border);border-radius:var(--radius);padding:16px;transition:border-color 0.25s; }
+.report-card:hover { border-color:rgba(0,229,255,0.25); }
+.report-name { font-family:var(--font-mono);font-size:0.75rem;color:var(--text-data);font-weight:700;margin-bottom:6px;word-break:break-all; }
+.report-meta { font-size:0.68rem;color:var(--text-dim);margin-bottom:12px;font-family:var(--font-mono); }
+.report-actions { display:flex;gap:8px;flex-wrap:wrap; }
+.rpt-btn { padding:5px 12px;border-radius:8px;font-family:var(--font-mono);font-size:0.65rem;cursor:pointer;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);transition:all 0.2s;text-decoration:none;display:inline-flex;align-items:center;gap:4px; }
+.rpt-btn:hover { color:var(--text-primary);border-color:rgba(255,255,255,0.2); }
+.rpt-btn.open-btn { color:var(--plasma);border-color:rgba(41,121,255,0.35);background:var(--plasma-dim); }
+.rpt-btn.pdf-btn  { color:var(--ok);border-color:rgba(0,230,118,0.35);background:var(--ok-dim); }
+.rpt-btn.prev-btn { color:var(--cyan);border-color:rgba(0,229,255,0.35);background:var(--cyan-dim); }
+.report-type-badge { display:inline-block;padding:2px 8px;border-radius:10px;font-family:var(--font-mono);font-size:0.6rem;margin-bottom:8px; }
+
+/* ── MODAL ── */
+.modal-overlay { position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px); }
+.modal-overlay.active { display:flex; }
+.modal-box { background:var(--void-2);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:28px;width:min(700px,90vw);max-height:80vh;overflow-y:auto;position:relative; }
+.modal-title { font-family:var(--font-display);font-size:1rem;font-weight:700;letter-spacing:2px;color:var(--text-primary);margin-bottom:16px; }
+.modal-content { font-family:var(--font-mono);font-size:0.75rem;color:var(--text-data);white-space:pre-wrap;line-height:1.7;background:rgba(0,0,0,0.3);border-radius:var(--radius);padding:16px;max-height:50vh;overflow-y:auto; }
+.modal-close { position:absolute;top:16px;right:16px;padding:5px 12px;border:1px solid var(--glass-border);border-radius:8px;background:var(--glass);color:var(--text-dim);font-family:var(--font-mono);font-size:0.65rem;cursor:pointer;transition:all 0.2s; }
+.modal-close:hover { color:var(--danger);border-color:var(--danger-dim); }
+
+/* ── SETTINGS VIEW ── */
+.settings-grid { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+.settings-section { padding:20px; }
+.settings-section h3 { font-family:var(--font-display);font-size:0.8rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:16px; }
+.setting-row { display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:12px; }
+.setting-row:last-child { border-bottom:none; }
+.setting-label { font-size:0.82rem;color:var(--text-primary); }
+.setting-sub { font-size:0.68rem;color:var(--text-dim);font-family:var(--font-mono); }
+.toggle-wrap { position:relative;width:44px;height:24px;flex-shrink:0; }
+.toggle-wrap input { opacity:0;width:0;height:0; }
+.toggle-slider { position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,0.1);border-radius:24px;transition:background 0.3s; }
+.toggle-slider::before { content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform 0.3s; }
+input:checked + .toggle-slider { background:var(--cyan); }
+input:checked + .toggle-slider::before { transform:translateX(20px); }
+.range-row { display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04); }
+.range-row:last-child { border-bottom:none; }
+.range-header { display:flex;justify-content:space-between;font-size:0.82rem; }
+.range-val { font-family:var(--font-mono);color:var(--cyan);font-size:0.8rem; }
+input[type=range] { width:100%;accent-color:var(--cyan);cursor:pointer; }
+.sys-info-row { display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.78rem; }
+.sys-info-row:last-child { border-bottom:none; }
+.sys-key { color:var(--text-dim);font-family:var(--font-mono);font-size:0.7rem; }
+.sys-val { color:var(--text-data);font-family:var(--font-mono);font-size:0.7rem; }
+.status-pill { display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:0.65rem;font-family:var(--font-mono); }
+.pill-online { background:var(--ok-dim);color:var(--ok);border:1px solid rgba(0,230,118,0.3); }
+.pill-offline { background:var(--danger-dim);color:var(--danger);border:1px solid rgba(255,23,68,0.3); }
+
+/* ── RESPONSIVE ── */
+@media(max-width:1100px){ #app{grid-template-columns:220px 1fr 260px;} .vitals-row{grid-template-columns:1fr 1fr;} .ai-dual-grid{grid-template-columns:1fr;} .settings-grid{grid-template-columns:1fr;} }
+@media(max-width:860px){ #app{grid-template-areas:"header" "main" "alerts";grid-template-columns:1fr;grid-template-rows:auto 1fr auto;} aside{display:none;} .alerts-panel{max-height:360px;} main#content-main{max-height:none;padding:14px;} }
+@media(max-width:560px){ .vitals-row{grid-template-columns:1fr 1fr;} .env-row{grid-template-columns:1fr 1fr;} .ai-dual-grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<!-- SOS OVERLAY -->
+<div class="sos-overlay" id="sosOverlay">
+  <div class="sos-card">
+    <div class="sos-emoji">🚨</div>
+    <div class="sos-title">SOS TRIGGERED</div>
+    <div class="sos-sub" id="sosSub">Emergency signal received from device</div>
+    <button class="sos-dismiss" onclick="dismissSOS()">ACKNOWLEDGE</button>
+  </div>
+</div>
+
+<!-- REPORT PREVIEW MODAL -->
+<div class="modal-overlay" id="previewModal">
+  <div class="modal-box">
+    <div class="modal-title" id="previewTitle">Medical Report Preview</div>
+    <button class="modal-close" onclick="closeModal()">✕ CLOSE</button>
+    <div class="modal-content" id="previewContent"></div>
+  </div>
+</div>
+
+<div id="app">
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚕</div>
+      <div class="logo-text">AIoT <span>MEDCORE</span></div>
+    </div>
+    <div class="header-status">
+      <div class="conn-badge">
+        <div class="conn-dot" id="connDot"></div>
+        <span id="connLabel">DISCONNECTED</span>
+      </div>
+      <div class="header-time" id="headerClock">--:--:--</div>
+      <div class="patient-badge">
+        <div class="avatar">👤</div>
+        <div>
+          <div class="patient-name" id="patientName">Patient #001</div>
+          <div class="patient-meta" id="patientMeta">-- · --</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="sidebar-section-label">Navigation</div>
+    <div class="nav-item active" data-view="live" onclick="switchNav(this,'live')"><span class="nav-icon">📊</span> Live Monitoring</div>
+    <div class="nav-item" data-view="history" onclick="switchNav(this,'history')"><span class="nav-icon">📈</span> History &amp; Trends</div>
+    <div class="nav-item" data-view="ai" onclick="switchNav(this,'ai')"><span class="nav-icon">🧬</span> AI Analysis</div>
+    <div class="nav-item" data-view="reports" onclick="switchNav(this,'reports')"><span class="nav-icon">🗃️</span> Reports</div>
+    <div class="nav-item" data-view="settings" onclick="switchNav(this,'settings')"><span class="nav-icon">⚙️</span> Settings</div>
+
+    <div class="sidebar-section-label" style="margin-top:20px;">Patient Profile</div>
+    <div class="profile-card">
+      <h4>Bio Data</h4>
+      <div class="profile-row"><span class="profile-key">Device ID</span><span class="profile-val" id="pDevId">---</span></div>
+      <div class="profile-row"><span class="profile-key">Age</span><span class="profile-val" id="pAge">--</span></div>
+      <div class="profile-row"><span class="profile-key">Gender</span><span class="profile-val" id="pGender">--</span></div>
+      <div class="profile-row"><span class="profile-key">Height</span><span class="profile-val" id="pHeight">-- cm</span></div>
+      <div class="profile-row"><span class="profile-key">Weight</span><span class="profile-val" id="pWeight">-- kg</span></div>
+      <div class="profile-row"><span class="profile-key">BMI</span><span class="profile-val" id="pBMI">--</span></div>
+    </div>
+
+    <div class="sidebar-section-label" style="margin-top:8px;">MQTT Broker</div>
+    <div class="profile-card">
+      <div class="mqtt-form">
+        <div class="mqtt-field"><label>Host</label><input type="text" id="mqttHost" value="d20b650b186d488a9a7d95dfcb4c6954.s1.eu.hivemq.cloud" /></div>
+        <div class="mqtt-field"><label>Port (WSS)</label><input type="text" id="mqttPort" value="8884" /></div>
+        <div class="mqtt-field"><label>Username</label><input type="text" id="mqttUser" value="makerboard_user" /></div>
+        <div class="mqtt-field"><label>Password</label><input type="password" id="mqttPass" value="19_04@NurCemre" /></div>
+        <div class="mqtt-field"><label>Topic</label><input type="text" id="mqttTopic" value="hospital/aivital/sensors" /></div>
+        <button class="mqtt-connect-btn" onclick="connectMQTT()">⚡ CONNECT</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main id="content-main">
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- VIEW: LIVE MONITORING                    -->
+    <!-- ════════════════════════════════════════ -->
+    <div class="view-page active" id="view-live">
+      <div class="vitals-row">
+        <div class="widget widget-heart">
+          <div class="widget-label">Heart Rate</div>
+          <div class="widget-icon-area"><span class="heart-icon beating c-pulse" id="heartIcon">♥</span></div>
+          <div class="ecg-line">
+            <svg viewBox="0 0 400 36" preserveAspectRatio="none">
+              <polyline points="0,18 30,18 50,18 60,2 70,34 80,18 100,18 130,18 150,18 160,6 170,30 180,18 200,18 230,18 250,18 260,2 270,34 280,18 300,18 330,18 350,18 360,6 370,30 380,18 400,18" fill="none" stroke="#ff4081" stroke-width="1.5" opacity="0.7"/>
+            </svg>
+          </div>
+          <div><span class="widget-value c-pulse" id="bpmVal">--</span><span class="widget-unit">BPM</span></div>
+          <div class="widget-sub" id="bpmStatus">Awaiting signal…</div>
+          <div class="widget-status-bar" id="bpmBar" style="background:var(--text-dim);"></div>
+        </div>
+        <div class="widget widget-spo2" style="display:flex;flex-direction:column;align-items:center;">
+          <div class="widget-label" style="width:100%;text-align:left;">Oxygen Saturation</div>
+          <div class="gauge-wrap">
+            <svg class="gauge-svg" viewBox="0 0 100 100">
+              <circle class="gauge-track" cx="50" cy="50" r="40"/>
+              <circle class="gauge-fill" id="spo2Arc" cx="50" cy="50" r="40" stroke="var(--cyan)" stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
+              <text class="gauge-center-text" x="50" y="47" id="spo2Val">--</text>
+              <text class="gauge-unit-text" x="50" y="61">%  SpO2</text>
+            </svg>
+          </div>
+          <div class="widget-sub" id="spo2Status">Awaiting signal…</div>
+          <div class="widget-status-bar" id="spo2Bar" style="background:var(--text-dim);"></div>
+        </div>
+        <div class="widget widget-temp" style="display:flex;flex-direction:column;align-items:center;">
+          <div class="widget-label" style="width:100%;text-align:left;">Body Temperature</div>
+          <div class="gauge-wrap">
+            <svg class="gauge-svg" viewBox="0 0 100 100">
+              <circle class="gauge-track" cx="50" cy="50" r="40"/>
+              <circle class="gauge-fill" id="tempArc" cx="50" cy="50" r="40" stroke="var(--amber)" stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
+              <text class="gauge-center-text" x="50" y="47" id="tempVal">--</text>
+              <text class="gauge-unit-text" x="50" y="61">°C  Temp</text>
+            </svg>
+          </div>
+          <div class="widget-sub" id="tempStatus">Awaiting signal…</div>
+          <div class="widget-status-bar" id="tempBar" style="background:var(--text-dim);"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Comparative Vital Analysis</span>
+          <div style="display:flex;gap:8px;"><span class="card-badge badge-live">● LIVE</span><span class="card-badge badge-cyan">Baseline Overlay</span></div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--pulse);"></div> Heart Rate (BPM)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--cyan);"></div> SpO2 (%)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--amber);"></div> Temp (×3 °C)</div>
+          <div class="legend-item"><div class="legend-dash" style="border-color:var(--cyan);"></div> Ideal BPM</div>
+          <div class="legend-item"><div class="legend-dash" style="border-color:rgba(0,229,255,0.5);"></div> Ideal SpO2</div>
+        </div>
+        <div class="chart-container"><canvas id="vitalChart"></canvas></div>
+        <div class="zone-badges">
+          <div class="zone-badge zb-ok">🟢 Normal Zone (60–100 BPM · SpO2 ≥ 95%)</div>
+          <div class="zone-badge zb-warn">🟡 Caution Zone (100–120 BPM · SpO2 90–94%)</div>
+          <div class="zone-badge zb-danger">🔴 Critical Zone (&gt;120 BPM · SpO2 &lt; 90%)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Activity &amp; Environment</span><span class="card-badge badge-cyan">BME280</span></div>
+        <div class="env-row">
+          <div class="env-tile"><div class="env-icon">🌡️</div><div class="env-label">Ambient Temp</div><div class="env-value" id="ambTempVal" style="color:var(--amber);">--°C</div></div>
+          <div class="env-tile"><div class="env-icon">💧</div><div class="env-label">Humidity</div><div class="env-value" id="humidVal" style="color:var(--cyan);">--%</div></div>
+          <div class="env-tile"><div class="env-icon">🌫️</div><div class="env-label">Pressure</div><div class="env-value" id="pressVal" style="color:var(--text-data);">-- hPa</div></div>
+          <div class="env-tile"><div class="env-icon">👟</div><div class="env-label">Steps</div><div class="env-value" id="stepsVal" style="color:var(--ok);">--</div></div>
+          <div class="env-tile"><div class="env-icon">🔥</div><div class="env-label">Calories</div><div class="env-value" id="caloriesVal" style="color:var(--pulse);">-- kcal</div></div>
+          <div class="env-tile"><div class="env-icon">📡</div><div class="env-label">Last Update</div><div class="env-value" id="lastUpdateVal" style="color:var(--text-dim);font-size:0.9rem;">--:--:--</div></div>
+        </div>
+        <div class="ai-advice-tag" id="aiAdviceTag"><span class="ai-tag-icon">🤖</span><span id="aiAdviceText">Waiting for AI environmental assessment…</span></div>
+      </div>
+
+      <div class="card" style="padding:0;">
+        <div class="card-header"><span class="card-title">Demo / Simulation</span><span class="card-badge" style="color:var(--text-dim);border-color:var(--glass-border);background:var(--glass);">DEV TOOLS</span></div>
+        <div class="demo-bar">
+          <button class="demo-btn" onclick="simNormal()">▶ Normal Readings</button>
+          <button class="demo-btn warn-btn" onclick="simWarning()">⚠ Warning State</button>
+          <button class="demo-btn danger-btn" onclick="simCritical()">🔴 Critical State</button>
+          <button class="demo-btn danger-btn" onclick="triggerSOS()">🆘 SOS / Fall</button>
+          <button class="demo-btn" onclick="clearAlerts()" style="margin-left:auto;">🗑 Clear Alerts</button>
+        </div>
+      </div>
+    </div><!-- /view-live -->
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- VIEW: HISTORY & TRENDS                  -->
+    <!-- ════════════════════════════════════════ -->
+    <div class="view-page" id="view-history">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Vital Trends</span>
+          <div class="timeframe-btns">
+            <button class="tf-btn active" onclick="setTimeframe(this,30)">Live 30</button>
+            <button class="tf-btn" onclick="setTimeframe(this,60)">60 pts</button>
+            <button class="tf-btn" onclick="setTimeframe(this,200)">All</button>
+          </div>
+        </div>
+        <div class="chart-legend" style="padding:14px 20px 0;">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--pulse);"></div> BPM</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--cyan);"></div> SpO2 %</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--amber);"></div> Temp °C</div>
+          <div class="legend-dash" style="border-color:var(--danger);margin-left:auto;width:30px;border-bottom:1.5px dashed var(--danger);opacity:.7;align-self:center;"></div>
+          <span style="font-size:0.62rem;color:var(--text-dim);font-family:var(--font-mono);">BPM &gt;100 / SpO2 &lt;95 / Temp &gt;38</span>
+        </div>
+        <div class="chart-container" style="height:260px;"><canvas id="historyBpmChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Event Log</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="historyCount" style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-dim);">0 records</span>
+            <button onclick="clearHistory()" style="padding:4px 12px;border-radius:8px;border:1px solid var(--danger-dim);background:transparent;color:var(--danger);font-family:var(--font-mono);font-size:0.62rem;cursor:pointer;">🗑 Clear</button>
+          </div>
+        </div>
+        <div class="tbl-wrap" style="padding:0 4px 4px;">
+          <table class="event-table" id="eventTable">
+            <thead>
+              <tr>
+                <th>Timestamp</th><th>BPM</th><th>SpO2</th><th>Temp °C</th><th>Steps</th><th>Status</th><th>SOS/Fall</th>
+              </tr>
+            </thead>
+            <tbody id="eventTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /view-history -->
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- VIEW: AI ANALYSIS                       -->
+    <!-- ════════════════════════════════════════ -->
+    <div class="view-page" id="view-ai">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Dual AI Engine</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="aiLastTs" style="font-family:var(--font-mono);font-size:0.62rem;color:var(--text-dim);">No data yet</span>
+            <button class="ai-refresh-btn" onclick="refreshAIDisplay()">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="ai-dual-grid" style="padding:20px;gap:20px;">
+
+          <!-- HuggingFace Classifier Card -->
+          <div style="background:rgba(255,255,255,0.025);border:1px solid var(--glass-border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:1.4rem;">🤗</span>
+              <div>
+                <div style="font-family:var(--font-display);font-size:0.8rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">HuggingFace Classifier</div>
+                <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--text-dim);">Vitals Risk Assessment Model</div>
+              </div>
+            </div>
+            <div id="riskBadge" class="risk-badge risk-low">🟢 Low Risk (Normal)</div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:0.68rem;color:var(--text-dim);margin-bottom:6px;">
+                <span>Model Confidence</span><span id="confPct" style="color:var(--cyan);">98%</span>
+              </div>
+              <div class="conf-bar-track"><div class="conf-bar-fill" id="confBar" style="width:98%;background:var(--ok);"></div></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:0.75rem;">
+              <div><div style="color:var(--text-dim);font-family:var(--font-mono);font-size:0.6rem;margin-bottom:4px;">RISK CODE</div><div id="riskCode" style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:var(--cyan);">0</div></div>
+              <div style="text-align:right;"><div style="color:var(--text-dim);font-family:var(--font-mono);font-size:0.6rem;margin-bottom:4px;">STATUS</div><div id="riskStatus" style="font-family:var(--font-mono);font-size:0.72rem;color:var(--ok);">Normal</div></div>
+            </div>
+          </div>
+
+          <!-- Groq LLM Card -->
+          <div style="background:rgba(255,255,255,0.025);border:1px solid var(--glass-border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:1.4rem;">🧠</span>
+                <div>
+                  <div style="font-family:var(--font-display);font-size:0.8rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">Groq LLM — CMO</div>
+                  <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--text-dim);">Clinical Reasoning Engine</div>
+                </div>
+              </div>
+              <span class="status-chip chip-stable" id="llmStatusChip">● Stable</span>
+            </div>
+            <div class="llm-terminal" id="llmTerminal">Awaiting clinical reasoning data from Groq backend…
+
+Connect MQTT or use demo controls to receive LLM verdicts.</div>
+          </div>
+        </div>
+
+        <!-- Physiological breakdown -->
+        <div style="padding:0 20px 20px;display:grid;grid-template-columns:1fr 1fr;gap:14px;" id="llmBreakdownGrid">
+          <div style="background:rgba(255,255,255,0.02);border:1px solid var(--glass-border);border-radius:var(--radius);padding:16px;">
+            <div style="font-family:var(--font-mono);font-size:0.6rem;letter-spacing:2px;color:var(--plasma);text-transform:uppercase;margin-bottom:10px;">📋 Physiological Assessment</div>
+            <ul id="physList" style="list-style:none;display:flex;flex-direction:column;gap:6px;font-family:var(--font-mono);font-size:0.72rem;color:var(--text-data);">
+              <li style="color:var(--text-dim);">— No data received yet —</li>
+            </ul>
+          </div>
+          <div style="background:rgba(255,255,255,0.02);border:1px solid var(--glass-border);border-radius:var(--radius);padding:16px;">
+            <div style="font-family:var(--font-mono);font-size:0.6rem;letter-spacing:2px;color:var(--danger);text-transform:uppercase;margin-bottom:10px;">⚡ Immediate Action Protocol</div>
+            <ul id="actionList" style="list-style:none;display:flex;flex-direction:column;gap:6px;font-family:var(--font-mono);font-size:0.72rem;color:var(--text-data);">
+              <li style="color:var(--text-dim);">— Awaiting triage assessment —</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div><!-- /view-ai -->
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- VIEW: REPORTS                           -->
+    <!-- ════════════════════════════════════════ -->
+    <div class="view-page" id="view-reports">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Medical Telemetry Reports</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="reportsCount" style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-dim);">0 reports</span>
+            <button onclick="generateLocalReport()" style="padding:6px 14px;border-radius:8px;border:1px solid rgba(0,230,118,0.35);background:var(--ok-dim);color:var(--ok);font-family:var(--font-mono);font-size:0.65rem;cursor:pointer;">+ Generate Report</button>
+          </div>
+        </div>
+        <div class="reports-grid" id="reportsGrid">
+          <div style="grid-column:1/-1;padding:40px;text-align:center;font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">
+            No reports generated yet. Receive data via MQTT or use demo controls, then click "Generate Report".
+          </div>
+        </div>
+      </div>
+    </div><!-- /view-reports -->
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- VIEW: SETTINGS                          -->
+    <!-- ════════════════════════════════════════ -->
+    <div class="view-page" id="view-settings">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Settings</span><span class="card-badge badge-cyan">Configuration</span></div>
+        <div class="settings-grid" style="padding:4px;">
+
+          <!-- Appearance -->
+          <div class="settings-section">
+            <h3>🎨 Appearance &amp; Theme</h3>
+            <div class="setting-row">
+              <div><div class="setting-label">Dark Mode</div><div class="setting-sub">Default cyberpunk dark theme</div></div>
+              <label class="toggle-wrap"><input type="checkbox" id="darkToggle" checked onchange="toggleTheme(this)"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div><div class="setting-label">Sound Alerts on SOS</div><div class="setting-sub">Browser notification beep</div></div>
+              <label class="toggle-wrap"><input type="checkbox" id="soundToggle" checked><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+
+          <!-- Alert Thresholds -->
+          <div class="settings-section">
+            <h3>⚠️ Alert Thresholds</h3>
+            <div class="range-row">
+              <div class="range-header"><span class="setting-label">Max BPM Alert</span><span class="range-val" id="maxBpmDisplay">100</span></div>
+              <input type="range" min="80" max="180" value="100" id="maxBpmRange" oninput="updateRange('maxBpm',this.value,'maxBpmDisplay')">
+            </div>
+            <div class="range-row">
+              <div class="range-header"><span class="setting-label">Min SpO2 Alert (%)</span><span class="range-val" id="minSpo2Display">95</span></div>
+              <input type="range" min="80" max="99" value="95" id="minSpo2Range" oninput="updateRange('minSpo2',this.value,'minSpo2Display')">
+            </div>
+            <div class="range-row">
+              <div class="range-header"><span class="setting-label">Max Temp Alert (°C)</span><span class="range-val" id="maxTempDisplay">38.0</span></div>
+              <input type="range" min="36" max="42" step="0.1" value="38" id="maxTempRange" oninput="updateRange('maxTemp',parseFloat(this.value).toFixed(1),'maxTempDisplay')">
+            </div>
+            <div class="range-row">
+              <div class="range-header"><span class="setting-label">Min BPM Alert</span><span class="range-val" id="minBpmDisplay">60</span></div>
+              <input type="range" min="30" max="70" value="60" id="minBpmRange" oninput="updateRange('minBpm',this.value,'minBpmDisplay')">
+            </div>
+          </div>
+
+          <!-- System Info -->
+          <div class="settings-section" style="grid-column:1/-1;border-top:1px solid var(--glass-border);padding-top:20px;">
+            <h3>🖥️ System Information</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div>
+                <div class="sys-info-row"><span class="sys-key">Device ID</span><span class="sys-val" id="sysDeviceId">AiVital_01</span></div>
+                <div class="sys-info-row"><span class="sys-key">MQTT Topic</span><span class="sys-val">hospital/aivital/sensors</span></div>
+                <div class="sys-info-row"><span class="sys-key">MQTT Broker</span><span class="sys-val" id="sysBroker">HiveMQ Cloud</span></div>
+                <div class="sys-info-row"><span class="sys-key">Dashboard Version</span><span class="sys-val">AiVital Track 2026</span></div>
+              </div>
+              <div>
+                <div class="sys-info-row"><span class="sys-key">MQTT Status</span><div id="mqttStatusPill" class="status-pill pill-offline">● Offline</div></div>
+                <div class="sys-info-row"><span class="sys-key">HuggingFace Model</span><div class="status-pill pill-online">● Active</div></div>
+                <div class="sys-info-row"><span class="sys-key">Groq Backend</span><div class="status-pill pill-online">● Active</div></div>
+                <div class="sys-info-row"><span class="sys-key">Google Docs</span><div class="status-pill pill-online">● Active</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /view-settings -->
+
+  </main>
+
+  <!-- ALERTS PANEL -->
+  <div class="alerts-panel">
+    <div class="alerts-header">
+      <div class="alerts-title"><div class="ai-dot"></div> AI SMART NOTES</div>
+      <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--text-dim);margin-top:4px;">Fusion AI · HuggingFace · Groq LLM</div>
+    </div>
+    <div class="alerts-scroll" id="alertsContainer"></div>
+  </div>
+</div><!-- /#app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  GLOBAL STATE
+// ═══════════════════════════════════════════════════════════
+let mqttClient = null;
+let liveChartInstance = null;
+let historyChartInstance = null;
+const MAX_CHART_POINTS = 40;
+
+// Live chart buffers
+const chartLabels=[], bpmData=[], spo2Data=[], tempData=[], bpmBaseline=[], spo2Baseline=[];
+
+// History (in-memory + localStorage)
+const STORAGE_KEY = 'aivital_history_2026';
+let historyRecords = loadHistory();
+let timeframeLimit = 30;
+
+// Reports store
+const REPORTS_KEY = 'aivital_reports_2026';
+let reports = loadReports();
+
+// Latest payload for AI/reports
+let lastPayload = null;
+let lastLLMText = '';
+let lastRiskData = { risk_code: null, status: 'Low Risk (Normal)', confidence: 0.98 };
+
+// Thresholds (from settings)
+const thresholds = { maxBpm: 100, minBpm: 60, minSpo2: 95, maxTemp: 38.0 };
+
+// ═══════════════════════════════════════════════════════════
+//  CLOCK
+// ═══════════════════════════════════════════════════════════
+function updateClock() {
+  document.getElementById('headerClock').textContent = new Date().toLocaleTimeString('en-US',{hour12:false});
+}
+setInterval(updateClock,1000); updateClock();
+
+// ═══════════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════════
+function switchNav(el, view) {
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.view-page').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if (view==='history') { renderHistoryChart(); renderEventTable(); }
+  if (view==='reports') renderReports();
+  if (view==='ai')      refreshAIDisplay();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CHART — LIVE
+// ═══════════════════════════════════════════════════════════
+function initChart() {
+  const ctx = document.getElementById('vitalChart').getContext('2d');
+  liveChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:chartLabels,
+      datasets:[
+        {label:'Danger ceiling',data:Array(MAX_CHART_POINTS).fill(120),borderColor:'transparent',backgroundColor:'rgba(255,23,68,0.06)',fill:'+1',pointRadius:0,tension:0},
+        {label:'Max',data:Array(MAX_CHART_POINTS).fill(200),borderColor:'transparent',backgroundColor:'rgba(255,23,68,0.04)',fill:false,pointRadius:0,tension:0},
+        {label:'Caution ceiling',data:Array(MAX_CHART_POINTS).fill(100),borderColor:'transparent',backgroundColor:'rgba(255,171,0,0.06)',fill:'+1',pointRadius:0,tension:0},
+        {label:'Normal floor',data:Array(MAX_CHART_POINTS).fill(60),borderColor:'transparent',backgroundColor:'rgba(0,230,118,0.06)',fill:'+1',pointRadius:0,tension:0},
+        {label:'Min floor',data:Array(MAX_CHART_POINTS).fill(30),borderColor:'transparent',backgroundColor:'rgba(255,64,129,0.05)',fill:false,pointRadius:0,tension:0},
+        {label:'Ideal BPM',data:bpmBaseline,borderColor:'rgba(0,229,255,0.6)',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false,tension:0},
+        {label:'Ideal SpO2',data:spo2Baseline,borderColor:'rgba(0,229,255,0.3)',borderDash:[3,4],borderWidth:1,pointRadius:0,fill:false,tension:0},
+        {label:'BPM',data:bpmData,borderColor:'#ff4081',backgroundColor:'rgba(255,64,129,0.12)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#ff4081',fill:false,tension:0.4,spanGaps:true},
+        {label:'SpO2',data:spo2Data,borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,0.1)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#00e5ff',fill:false,tension:0.4,spanGaps:true},
+        {label:'Temp×3',data:tempData,borderColor:'#ffab00',backgroundColor:'rgba(255,171,0,0.08)',borderWidth:1.5,pointRadius:2,pointBackgroundColor:'#ffab00',fill:false,tension:0.4,spanGaps:true}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},animation:{duration:0},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(11,15,28,0.95)',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,titleColor:'#7b8ab8',bodyColor:'#c0d6ff',titleFont:{family:'Share Tech Mono',size:11},bodyFont:{family:'Share Tech Mono',size:11},padding:12,callbacks:{filter:(item)=>item.datasetIndex>=5}}},
+      scales:{
+        x:{ticks:{color:'#7b8ab8',font:{family:'Share Tech Mono',size:10},maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'rgba(255,255,255,0.08)'}},
+        y:{min:30,max:200,ticks:{color:'#7b8ab8',font:{family:'Share Tech Mono',size:10}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'rgba(255,255,255,0.08)'}}
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CHART — HISTORY
+// ═══════════════════════════════════════════════════════════
+function renderHistoryChart() {
+  const recs = historyRecords.slice(-timeframeLimit);
+  const ctx = document.getElementById('historyBpmChart').getContext('2d');
+  if (historyChartInstance) { historyChartInstance.destroy(); }
+
+  const mkDash = (val,clr)=>({label:'',data:recs.map(()=>val),borderColor:clr,borderDash:[4,4],borderWidth:1,pointRadius:0,fill:false,tension:0});
+
+  historyChartInstance = new Chart(ctx,{
+    type:'line',
+    data:{
+      labels: recs.map(r=>r.time),
+      datasets:[
+        mkDash(thresholds.maxBpm,'rgba(255,23,68,0.5)'),
+        mkDash(thresholds.minSpo2,'rgba(0,229,255,0.4)'),
+        mkDash(thresholds.maxTemp,'rgba(255,171,0,0.5)'),
+        {label:'BPM',data:recs.map(r=>r.bpm),borderColor:'#ff4081',backgroundColor:'rgba(255,64,129,0.08)',borderWidth:2,pointRadius:2,fill:false,tension:0.4,spanGaps:true},
+        {label:'SpO2',data:recs.map(r=>r.spo2),borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,0.06)',borderWidth:2,pointRadius:2,fill:false,tension:0.4,spanGaps:true},
+        {label:'Temp',data:recs.map(r=>r.temp),borderColor:'#ffab00',backgroundColor:'rgba(255,171,0,0.06)',borderWidth:1.5,pointRadius:2,fill:false,tension:0.4,spanGaps:true}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:0},interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#7b8ab8',font:{family:'Share Tech Mono',size:10},filter:i=>i.datasetIndex>=3}},tooltip:{backgroundColor:'rgba(11,15,28,0.95)',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,titleColor:'#7b8ab8',bodyColor:'#c0d6ff',titleFont:{family:'Share Tech Mono',size:11},bodyFont:{family:'Share Tech Mono',size:11},callbacks:{filter:i=>i.datasetIndex>=3}}},
+      scales:{
+        x:{ticks:{color:'#7b8ab8',font:{family:'Share Tech Mono',size:10},maxTicksLimit:10},grid:{color:'rgba(255,255,255,0.04)'}},
+        y:{ticks:{color:'#7b8ab8',font:{family:'Share Tech Mono',size:10}},grid:{color:'rgba(255,255,255,0.04)'}}
+      }
+    }
+  });
+  document.getElementById('historyCount').textContent = historyRecords.length + ' records';
+}
+
+function setTimeframe(btn,n) {
+  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  timeframeLimit = n;
+  renderHistoryChart();
+}
+
+function renderEventTable() {
+  const tbody = document.getElementById('eventTbody');
+  const recs = [...historyRecords].reverse().slice(0,100);
+  tbody.innerHTML = recs.length===0
+    ? '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-dim);">No data recorded yet.</td></tr>'
+    : recs.map(r=>{
+        const bpmLvl = r.bpm>120?'danger':r.bpm>100?'warn':'ok';
+        const spo2Lvl = r.spo2<90?'danger':r.spo2<95?'warn':'ok';
+        const tempLvl = r.temp>38.5?'danger':r.temp>37.5?'warn':'ok';
+        const overall = [bpmLvl,spo2Lvl,tempLvl].includes('danger')?'danger':[bpmLvl,spo2Lvl,tempLvl].includes('warn')?'warn':'ok';
+        const labels = {ok:'Normal',warn:'Caution',danger:'Critical'};
+        return `<tr>
+          <td>${r.time}</td>
+          <td style="color:${r.bpm>100?'var(--pulse)':'var(--text-data)'}">${r.bpm??'--'}</td>
+          <td style="color:${r.spo2<95?'var(--warn)':'var(--cyan)'}">${r.spo2??'--'}%</td>
+          <td style="color:${r.temp>38?'var(--amber)':'var(--text-data)'}">${r.temp??'--'}</td>
+          <td>${r.steps??'--'}</td>
+          <td><span class="tag tag-${overall}">${labels[overall]}</span></td>
+          <td>${r.sos?'<span class="tag tag-sos">🚨 SOS</span>':r.fall?'<span class="tag tag-sos">⚠ Fall</span>':'<span class="tag tag-ok">–</span>'}</td>
+        </tr>`;
+      }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  AI ANALYSIS VIEW
+// ═══════════════════════════════════════════════════════════
+function refreshAIDisplay() {
+  const ts = document.getElementById('aiLastTs');
+  ts.textContent = lastPayload ? 'Updated: '+new Date().toLocaleTimeString('en-US',{hour12:false}) : 'No data yet';
+
+  // Risk badge
+  const rc = lastRiskData.risk_code;
+  const badge = document.getElementById('riskBadge');
+  const conf = lastRiskData.confidence ?? 0.98;
+  const confPct = Math.round(conf*100);
+  document.getElementById('confPct').textContent = confPct+'%';
+  document.getElementById('confBar').style.width = confPct+'%';
+  document.getElementById('riskCode').textContent = rc ?? 0;
+
+  if (rc===0 || lastRiskData.status?.toLowerCase().includes('low')) {
+    badge.className='risk-badge risk-low'; badge.textContent='🟢 Low Risk (Normal)';
+    document.getElementById('confBar').style.background='var(--ok)';
+    document.getElementById('riskStatus').textContent='Normal'; document.getElementById('riskStatus').style.color='var(--ok)';
+  } else if (rc===1 || lastRiskData.status?.toLowerCase().includes('moderate')) {
+    badge.className='risk-badge risk-mod'; badge.textContent='🟡 Moderate Risk';
+    document.getElementById('confBar').style.background='var(--warn)';
+    document.getElementById('riskStatus').textContent='Moderate'; document.getElementById('riskStatus').style.color='var(--warn)';
+  } else {
+    badge.className='risk-badge risk-high'; badge.textContent='🔴 High Risk — Critical';
+    document.getElementById('confBar').style.background='var(--danger)';
+    document.getElementById('riskStatus').textContent='Critical'; document.getElementById('riskStatus').style.color='var(--danger)';
+  }
+
+  // LLM terminal
+  if (lastLLMText) {
+    document.getElementById('llmTerminal').innerHTML = formatLLMText(lastLLMText);
+    parseLLMBreakdown(lastLLMText);
+    // Status chip
+    const chip = document.getElementById('llmStatusChip');
+    if (lastLLMText.toLowerCase().includes('critical')) { chip.className='status-chip chip-critical'; chip.textContent='● Critical'; }
+    else if (lastLLMText.toLowerCase().includes('abnormal')) { chip.className='status-chip chip-abnormal'; chip.textContent='● Abnormal'; }
+    else { chip.className='status-chip chip-stable'; chip.textContent='● Stable'; }
+  }
+}
+
+function formatLLMText(txt) {
+  return txt
+    .replace(/\*\*(.*?)\*\*/g, '<span class="llm-section">$1</span>')
+    .replace(/•\s/g, '<span style="color:var(--cyan);">► </span>')
+    .replace(/\n/g,'<br>');
+}
+
+function parseLLMBreakdown(txt) {
+  // Try to extract bullet points under Physiological Assessment and Action Protocol
+  const physMatch = txt.match(/PHYSIOLOGICAL ASSESSMENT[:\s]*([\s\S]*?)(?:IMMEDIATE ACTION|$)/i);
+  const actionMatch = txt.match(/IMMEDIATE ACTION[:\s]*([\s\S]*?)$/i);
+
+  const toItems = (block) => {
+    if (!block) return [];
+    return block.split('\n').map(l=>l.replace(/^[•\-\*►\s]+/,'')).filter(l=>l.trim().length>4).slice(0,6);
+  };
+
+  const physItems = toItems(physMatch?.[1]);
+  const actionItems = toItems(actionMatch?.[1]);
+
+  const physEl = document.getElementById('physList');
+  const actionEl = document.getElementById('actionList');
+
+  physEl.innerHTML = physItems.length
+    ? physItems.map(i=>`<li>► ${i}</li>`).join('')
+    : '<li style="color:var(--text-dim);">— Parsing from LLM verdict —</li>';
+
+  actionEl.innerHTML = actionItems.length
+    ? actionItems.map(i=>`<li style="color:var(--warn);">⚡ ${i}</li>`).join('')
+    : '<li style="color:var(--text-dim);">— Continue monitoring —</li>';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  REPORTS VIEW
+// ═══════════════════════════════════════════════════════════
+function generateLocalReport(docData) {
+  if (!lastPayload && !docData) { addAlert('warn','REPORTS','No data available. Receive at least one MQTT packet first.',null); return; }
+  const p = lastPayload || {};
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0,10);
+  const timeStr = now.toLocaleTimeString('en-US',{hour12:false});
+  const sos = p.SOS_Alert||p.sos||false;
+  const fall = p.Fall||p.fall_detected||false;
+  const type = sos?'SOS':fall?'Fall':p.risk_code===2?'Critical':'Vitals';
+  const docId = docData?.documentId || null;
+  const docLink = docData?.docLink || null;
+
+  const report = {
+    id: 'RPT_'+Date.now(),
+    name: `Medical_Report_AiVital_01_${dateStr}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`,
+    date: dateStr, time: timeStr,
+    type, docId, docLink,
+    bpm: p.BPM??'--', spo2: p.SpO2??'--', temp: p.Body_Temp??'--',
+    age: p.Age??'--', gender: p.Gender??'--',
+    llm: lastLLMText || docData?.full_report || 'No clinical reasoning available.',
+    risk: lastRiskData.status || 'N/A'
+  };
+
+  reports.unshift(report);
+  if (reports.length>50) reports.pop();
+  saveReports();
+  renderReports();
+  addAlert('ok','📑 REPORT','Report generated: '+report.name,null);
+  if (document.getElementById('view-reports').classList.contains('active')) renderReports();
+}
+
+function renderReports() {
+  const grid = document.getElementById('reportsGrid');
+  document.getElementById('reportsCount').textContent = reports.length + ' reports';
+  if (!reports.length) {
+    grid.innerHTML='<div style="grid-column:1/-1;padding:40px;text-align:center;font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">No reports yet. Generate one from the button above.</div>';
+    return;
+  }
+  const typeColors = {SOS:'var(--danger)',Fall:'var(--warn)',Critical:'var(--danger)',Vitals:'var(--cyan)',Normal:'var(--ok)'};
+  grid.innerHTML = reports.map(r=>`
+    <div class="report-card">
+      <span class="report-type-badge" style="background:${typeColors[r.type]||'var(--plasma)'}22;color:${typeColors[r.type]||'var(--plasma)'};border:1px solid ${typeColors[r.type]||'var(--plasma)'}44;">${r.type}</span>
+      <div class="report-name">${r.name}</div>
+      <div class="report-meta">${r.date} ${r.time} · BPM:${r.bpm} SpO2:${r.spo2}% Temp:${r.temp}°C</div>
+      <div class="report-meta" style="color:var(--text-dim);">AI Risk: ${r.risk}</div>
+      <div class="report-actions">
+        ${r.docLink?`<a class="rpt-btn open-btn" href="${r.docLink}" target="_blank">📄 Google Docs</a>`:''}
+        <button class="rpt-btn prev-btn" onclick="previewReport('${r.id}')">👁 Preview</button>
+        <button class="rpt-btn pdf-btn" onclick="exportPDF('${r.id}')">⬇ PDF</button>
+      </div>
+    </div>`).join('');
+}
+
+function previewReport(id) {
+  const r = reports.find(x=>x.id===id);
+  if (!r) return;
+  document.getElementById('previewTitle').textContent = r.name;
+  document.getElementById('previewContent').textContent =
+`MEDICAL REPORT — AiVital Track 2026
+════════════════════════════════════════
+Device ID : AiVital_01
+Report ID : ${r.id}
+Date/Time : ${r.date} ${r.time}
+Alert Type: ${r.type}
+AI Risk   : ${r.risk}
+
+─── VITALS ───────────────────────────────
+Heart Rate     : ${r.bpm} BPM
+SpO2           : ${r.spo2}%
+Body Temp      : ${r.temp} °C
+Patient Age    : ${r.age}
+Patient Gender : ${r.gender}
+
+─── CLINICAL REASONING (Groq LLM) ───────
+${r.llm || 'No LLM data available.'}
+
+═══════════════════════════════════════════
+Generated by AiVital MedCore Dashboard
+`;
+  document.getElementById('previewModal').classList.add('active');
+}
+
+function closeModal() { document.getElementById('previewModal').classList.remove('active'); }
+
+function exportPDF(id) {
+  const r = reports.find(x=>x.id===id);
+  if (!r) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16); doc.setTextColor(30,60,120);
+  doc.text('Medical Telemetry Report — AiVital Track 2026', 14, 18);
+  doc.setFontSize(9); doc.setTextColor(100);
+  doc.text(`Device: AiVital_01  |  ${r.date} ${r.time}  |  Alert: ${r.type}`, 14, 26);
+  doc.line(14,30,196,30);
+  doc.setFontSize(11); doc.setTextColor(37,99,235);
+  doc.text('1. Vital Signs', 14, 38);
+  doc.setFontSize(9); doc.setTextColor(50);
+  doc.text(`BPM: ${r.bpm}   SpO2: ${r.spo2}%   Body Temp: ${r.temp}°C   AI Risk: ${r.risk}`, 14, 46);
+  doc.setFontSize(11); doc.setTextColor(37,99,235);
+  doc.text('2. Clinical Reasoning (Groq LLM)', 14, 58);
+  doc.setFontSize(9); doc.setTextColor(50);
+  const lines = doc.splitTextToSize(r.llm || 'No LLM data.', 180);
+  doc.text(lines, 14, 66);
+  doc.save(r.name+'.pdf');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════════
+function toggleTheme(inp) {
+  document.body.classList.toggle('light', !inp.checked);
+}
+
+function updateRange(key, val, displayId) {
+  thresholds[key] = parseFloat(val);
+  document.getElementById(displayId).textContent = val;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GAUGES + WIDGETS
+// ═══════════════════════════════════════════════════════════
+function setGauge(arcId, valId, value, min, max, threshs) {
+  const arc = document.getElementById(arcId);
+  const txt = document.getElementById(valId);
+  const r=40, circ=2*Math.PI*r;
+  const pct = Math.max(0,Math.min(1,(value-min)/(max-min)));
+  arc.style.strokeDashoffset = circ*(1-pct);
+  txt.textContent = value===null?'--':Math.round(value);
+  let color='#00e5ff';
+  if (threshs) {
+    if (threshs.danger && value>=threshs.danger) color='#ff1744';
+    else if (threshs.warn && value>=threshs.warn) color='#ffab00';
+    else if (threshs.low && value<=threshs.low) color='#ff4081';
+    else color='#00e676';
+  }
+  arc.style.stroke=color;
+}
+
+function setWidgetStatus(barId, statusId, level, text) {
+  const colors={ok:'#00e676',warn:'#ffab00',danger:'#ff1744',idle:'#7b8ab8'};
+  const bar=document.getElementById(barId); if(bar) bar.style.background=colors[level]||colors.idle;
+  const st=document.getElementById(statusId); if(st) st.textContent=text;
+}
+
+function setHeartBeat(bpm) {
+  const icon=document.getElementById('heartIcon');
+  if (!bpm||bpm<30){icon.classList.remove('beating');return;}
+  icon.style.setProperty('--beat-duration',(60/bpm).toFixed(2)+'s');
+  icon.classList.add('beating');
+}
+
+function getBaseline(age) {
+  if (!age||age<1) return {bpm:72,spo2:98};
+  return {bpm: age<18?80:age<40?72:age<60?70:68, spo2:98};
+}
+
+// ═══════════════════════════════════════════════════════════
+//  APPLY PAYLOAD (main data handler)
+// ═══════════════════════════════════════════════════════════
+function applyPayload(data) {
+  lastPayload = data;
+  const bpm  = data.BPM  ?? data.bpm  ?? data.heart_rate;
+  const spo2 = data.SpO2 ?? data.spo2 ?? data.oxygen;
+  const temp = data.Body_Temp ?? data.body_temp ?? data.temp;
+
+  // Profile
+  if (data.device_id) {
+    document.getElementById('pDevId').textContent = data.device_id;
+    document.getElementById('patientName').textContent = 'Patient #'+data.device_id;
+    document.getElementById('sysDeviceId').textContent = data.device_id;
+  }
+  const age=data.Age??data.age??null, gender=data.Gender??data.gender??null;
+  const height=data.Height??data.height??null, weight=data.Weight??data.weight??null, bmi=data.BMI??data.bmi??null;
+  if(age)    document.getElementById('pAge').textContent    = age+' yrs';
+  if(gender) document.getElementById('pGender').textContent = gender;
+  if(height) document.getElementById('pHeight').textContent = (height>3?height:(height*100)).toFixed(0)+' cm';
+  if(weight) document.getElementById('pWeight').textContent = weight+' kg';
+  if(bmi)    document.getElementById('pBMI').textContent    = bmi.toFixed(1);
+  if(age||gender) document.getElementById('patientMeta').textContent = [(age?age+'yr':'--'),(gender||'--')].join(' · ');
+
+  // BPM
+  if(bpm!=null){
+    document.getElementById('bpmVal').textContent=Math.round(bpm);
+    setHeartBeat(bpm);
+    const lvl=bpm<60?'warn':bpm<=100?'ok':bpm<=120?'warn':'danger';
+    const txt=bpm<60?'Bradycardia':bpm<=100?'Normal Sinus':bpm<=120?'Elevated':'Tachycardia';
+    setWidgetStatus('bpmBar','bpmStatus',lvl,txt);
+  }
+  // SpO2
+  if(spo2!=null){
+    setGauge('spo2Arc','spo2Val',spo2,80,100,{low:90});
+    const lvl=spo2>=95?'ok':spo2>=90?'warn':'danger';
+    setWidgetStatus('spo2Bar','spo2Status',lvl,spo2>=95?'Normal Perfusion':spo2>=90?'Mild Hypoxia':'Critical Hypoxia');
+  }
+  // Temp
+  if(temp!=null){
+    setGauge('tempArc','tempVal',temp,34,42,{danger:38.5,warn:37.5,low:36.0});
+    const lvl=temp<36?'warn':temp<=37.4?'ok':temp<=38.4?'warn':'danger';
+    setWidgetStatus('tempBar','tempStatus',lvl,temp<36?'Hypothermia risk':temp<=37.4?'Normal':temp<=38.4?'Low Fever':'High Fever');
+  }
+
+  // Environment
+  const ambTemp=data.Amb_Temp??data.ambient_temp, humid=data.Humidity??data.humidity;
+  const press=data.Pressure??data.pressure, steps=data.Steps??data.steps, cals=data.Calories??data.calories;
+  if(ambTemp!=null) document.getElementById('ambTempVal').textContent=ambTemp.toFixed(1)+'°C';
+  if(humid!=null)   document.getElementById('humidVal').textContent=humid.toFixed(1)+'%';
+  if(press!=null)   document.getElementById('pressVal').textContent=press.toFixed(0)+' hPa';
+  if(steps!=null)   document.getElementById('stepsVal').textContent=steps.toLocaleString();
+  if(cals!=null)    document.getElementById('caloriesVal').textContent=cals.toFixed(0)+' kcal';
+
+  if(data.ai_advice) document.getElementById('aiAdviceText').textContent=data.ai_advice;
+  document.getElementById('lastUpdateVal').textContent=new Date().toLocaleTimeString('en-US',{hour12:false});
+
+  // Live chart buffers
+  const now=new Date().toLocaleTimeString('en-US',{hour12:false,second:'2-digit'}).slice(0,-3);
+  const bl=getBaseline(age);
+  if(chartLabels.length>=MAX_CHART_POINTS){chartLabels.shift();bpmData.shift();spo2Data.shift();tempData.shift();bpmBaseline.shift();spo2Baseline.shift();}
+  chartLabels.push(now);
+  bpmData.push(bpm??null); spo2Data.push(spo2??null); tempData.push(temp?temp*3:null);
+  bpmBaseline.push(bl.bpm); spo2Baseline.push(bl.spo2);
+  if(liveChartInstance) liveChartInstance.update('none');
+
+  // AI risk fields from backend
+  if(data.ai_prediction) {
+    lastRiskData = { risk_code:data.ai_prediction.risk_code, status:data.ai_prediction.status, confidence:data.ai_prediction.confidence };
+  } else if(data.risk_code!=null) {
+    lastRiskData = { risk_code:data.risk_code, status:data.status, confidence:data.confidence };
+  }
+  if(data.llm_message) lastLLMText = data.llm_message;
+
+  // History record
+  const rec = {
+    time: new Date().toLocaleTimeString('en-US',{hour12:false}),
+    bpm: bpm!=null?Math.round(bpm):null,
+    spo2: spo2!=null?Math.round(spo2):null,
+    temp: temp!=null?parseFloat(temp.toFixed(1)):null,
+    steps: steps??null,
+    sos: !!(data.SOS_Alert||data.sos),
+    fall: !!(data.Fall||data.fall_detected)
+  };
+  historyRecords.push(rec);
+  if(historyRecords.length>500) historyRecords.shift();
+  saveHistory();
+
+  // Auto-report on SOS/Fall from backend
+  if(data.documentId) generateLocalReport(data);
+
+  // SOS / Fall
+  if(data.SOS_Alert||data.sos||data.Fall||data.fall_detected){
+    const msg = data.Fall?'🚨 Fall Detected! Patient requires immediate assistance.':'🚨 SOS Button Pressed! Immediate intervention required.';
+    triggerSOS(data.device_id?'Device '+data.device_id+': '+msg:msg);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MQTT
+// ═══════════════════════════════════════════════════════════
+function connectMQTT() {
+  const host=document.getElementById('mqttHost').value.trim();
+  const port=parseInt(document.getElementById('mqttPort').value.trim());
+  const user=document.getElementById('mqttUser').value.trim();
+  const pass=document.getElementById('mqttPass').value.trim();
+  const topic=document.getElementById('mqttTopic').value.trim();
+  if(mqttClient){try{mqttClient.end(true);}catch(e){}}
+  setConnStatus(false);
+  mqttClient = mqtt.connect(`wss://${host}:${port}/mqtt`,{username:user,password:pass,clientId:'medcore_'+Math.random().toString(16).slice(2,8),clean:true,reconnectPeriod:5000});
+  mqttClient.on('connect',()=>{
+    setConnStatus(true);
+    document.getElementById('mqttStatusPill').className='status-pill pill-online';
+    document.getElementById('mqttStatusPill').textContent='● Online';
+    mqttClient.subscribe(topic,{qos:1});
+    addAlert('info','🔌 Connected',`Subscribed to ${topic}. Awaiting telemetry…`,99);
+  });
+  mqttClient.on('message',(t,msg)=>{
+    try { const data=JSON.parse(msg.toString()); applyPayload(data); handleAINote(data); } catch(e){console.warn('Bad payload',e);}
+  });
+  mqttClient.on('error',(err)=>{ setConnStatus(false); addAlert('warn','⚡ MQTT Error',err.message||'Connection failed',99); });
+  mqttClient.on('offline',()=>{ setConnStatus(false); document.getElementById('mqttStatusPill').className='status-pill pill-offline'; document.getElementById('mqttStatusPill').textContent='● Offline'; });
+  mqttClient.on('reconnect',()=>addAlert('info','↺ Reconnecting','Attempting to restore MQTT link…',99));
+}
+
+function setConnStatus(live) {
+  document.getElementById('connDot').classList.toggle('live',live);
+  document.getElementById('connLabel').textContent=live?'LIVE':'OFFLINE';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  AI NOTES PANEL
+// ═══════════════════════════════════════════════════════════
+function handleAINote(data) {
+  const bpm=data.BPM??data.bpm, spo2=data.SpO2??data.spo2;
+  const rc=data.risk_code??data.ai_prediction?.risk_code;
+  const conf=data.confidence??data.ai_prediction?.confidence;
+  let level='ok', msg='';
+
+  if(data.SOS_Alert||data.sos||data.Fall||data.fall_detected){
+    level='danger'; msg='🚨 SOS / Fall Detected — Patient requires immediate assistance!';
+  } else if(rc===2||data.status?.toLowerCase().includes('high')) {
+    level='danger'; msg='⚠️ AI: HIGH RISK — Vital signs deviate significantly. Immediate clinical review advised.';
+  } else if(bpm>thresholds.maxBpm) {
+    level='warn'; msg=`Elevated HR — ${Math.round(bpm)} BPM. Monitor for sustained tachycardia.`;
+  } else if(spo2<thresholds.minSpo2) {
+    level=spo2<90?'danger':'warn';
+    msg=`SpO₂ at ${Math.round(spo2)}% — ${spo2<90?'Critical Hypoxia. Supplemental O2 required.':'Mild hypoxemia. Ensure ventilation.'}`;
+  } else if(rc===0||data.status?.toLowerCase().includes('low')) {
+    level='ok'; msg='✅ AI: LOW RISK — Vital signs within acceptable parameters.';
+  } else {
+    level='ok'; msg=`✅ Vitals stable. BPM ${bpm?Math.round(bpm):'--'} · SpO₂ ${spo2?Math.round(spo2)+'%':'--'}`;
+  }
+  if(data.llm_message) msg=data.llm_message;
+  addAlert(level,level==='ok'?'STATUS NORMAL':level==='warn'?'CAUTION':'CRITICAL ALERT',msg,conf);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ALERTS
+// ═══════════════════════════════════════════════════════════
+function addAlert(level,title,msg,confidence) {
+  const container=document.getElementById('alertsContainer');
+  const now=new Date().toLocaleTimeString('en-US',{hour12:false});
+  const confStr=confidence!=null&&confidence<99?(confidence*100).toFixed(0)+'% conf.':'';
+  while(container.children.length>=30) container.removeChild(container.lastChild);
+  const div=document.createElement('div');
+  div.className=`toast ${level}`;
+  div.innerHTML=`<div class="toast-level"><div class="toast-dot"></div>${title}</div><div class="toast-msg">${msg}</div><div class="toast-time">${now}</div>${confStr?`<div class="toast-confidence">${confStr}</div>`:''}`;
+  container.prepend(div);
+}
+
+function clearAlerts() {
+  document.getElementById('alertsContainer').innerHTML='';
+  addAlert('info','CLEARED','Alert log cleared.',null);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SOS
+// ═══════════════════════════════════════════════════════════
+function triggerSOS(msg) {
+  document.getElementById('sosOverlay').classList.add('active');
+  if(msg) document.getElementById('sosSub').textContent=msg;
+  addAlert('danger','🆘 SOS EMERGENCY',msg||'Emergency signal!',null);
+  if(document.getElementById('soundToggle').checked) {
+    try { const ctx=new AudioContext(); const o=ctx.createOscillator(); o.type='square'; o.frequency.value=880; o.connect(ctx.destination); o.start(); setTimeout(()=>o.stop(),300); } catch(e){}
+  }
+}
+function dismissSOS() { document.getElementById('sosOverlay').classList.remove('active'); }
+
+// ═══════════════════════════════════════════════════════════
+//  HISTORY PERSISTENCE
+// ═══════════════════════════════════════════════════════════
+function saveHistory() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(historyRecords.slice(-500))); } catch(e){}
+}
+function loadHistory() {
+  try { const d=localStorage.getItem(STORAGE_KEY); return d?JSON.parse(d):[]; } catch(e){ return []; }
+}
+function clearHistory() {
+  if(confirm('Clear all recorded history?')){ historyRecords=[]; saveHistory(); renderHistoryChart(); renderEventTable(); }
+}
+function saveReports() {
+  try { localStorage.setItem(REPORTS_KEY, JSON.stringify(reports)); } catch(e){}
+}
+function loadReports() {
+  try { const d=localStorage.getItem(REPORTS_KEY); return d?JSON.parse(d):[]; } catch(e){ return []; }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DEMO SIMULATIONS
+// ═══════════════════════════════════════════════════════════
+function rand(a,b){return Math.random()*(b-a)+a;}
+
+function simNormal() {
+  const p={device_id:'AiVital_01',Age:34,Gender:'Male',Height:1.78,Weight:75,BPM:68+rand(-5,5),SpO2:98+rand(-1,1),Body_Temp:36.6+rand(-0.2,0.2),Amb_Temp:23.5,Humidity:52,Pressure:1013,Steps:Math.floor(rand(3000,8000)),Calories:rand(200,400).toFixed(0),BMI:23.7,ai_advice:'🌡 Comfortable environment. Stay hydrated.',risk_code:0,status:'Low Risk (Normal)',confidence:0.94,llm_message:`CLINICAL STATUS: Stable\n\nPHYSIOLOGICAL ASSESSMENT\n• Heart rate 68 BPM — normal sinus rhythm\n• SpO2 98% — adequate tissue oxygenation\n• Body temperature 36.6°C — normothermia\n• Activity level: 5000+ steps — good mobility\n\nIMMEDIATE ACTION PROTOCOL\n• Continue routine monitoring\n• No intervention required\n• Schedule next vitals check in 30 minutes`};
+  applyPayload(p); handleAINote(p);
+}
+
+function simWarning() {
+  const p={device_id:'AiVital_01',Age:34,Gender:'Male',Height:1.78,Weight:75,BPM:110,SpO2:93,Body_Temp:37.8,Amb_Temp:33,Humidity:78,Pressure:1008,Steps:1200,Calories:95,BMI:23.7,ai_advice:'🥵 High heat & humidity — increased cardiovascular load detected.',risk_code:1,status:'Moderate Risk',confidence:0.71,llm_message:`CLINICAL STATUS: Abnormal\n\nPHYSIOLOGICAL ASSESSMENT\n• Heart rate 110 BPM — mild tachycardia\n• SpO2 93% — mild hypoxemia, borderline\n• Body temperature 37.8°C — low-grade fever\n• High ambient humidity may worsen respiratory status\n\nIMMEDIATE ACTION PROTOCOL\n• Increase monitoring frequency to every 5 minutes\n• Provide cooling measures and oral hydration\n• Prepare supplemental oxygen\n• Notify attending physician if SpO2 drops below 90%`};
+  applyPayload(p); handleAINote(p);
+}
+
+function simCritical() {
+  const p={device_id:'AiVital_01',Age:34,Gender:'Male',Height:1.78,Weight:75,BPM:135,SpO2:87,Body_Temp:38.9,Amb_Temp:38,Humidity:85,Pressure:1005,Steps:200,Calories:40,BMI:23.7,ai_advice:'🚨 CRITICAL — Multiple abnormal readings. Immediate intervention required.',risk_code:2,status:'High Risk — Critical',confidence:0.97,llm_message:`CLINICAL STATUS: Critical\n\nPHYSIOLOGICAL ASSESSMENT\n• Heart rate 135 BPM — significant tachycardia\n• SpO2 87% — critical hypoxemia, tissue hypoxia risk\n• Body temperature 38.9°C — high fever\n• Patient appears hemodynamically compromised\n• Potential sepsis or acute respiratory failure\n\nIMMEDIATE ACTION PROTOCOL\n• CALL CODE BLUE immediately\n• Apply high-flow oxygen (15L/min non-rebreather mask)\n• Establish IV access — 0.9% NaCl bolus 500ml\n• Obtain 12-lead ECG and arterial blood gas\n• Prepare for ICU transfer`};
+  applyPayload(p); handleAINote(p);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+initChart();
+addAlert('info','SYSTEM READY','AiVital Track 2026 Dashboard initialised. Connect MQTT or use demo controls.',null);
+</script>
+</body>
+</html>

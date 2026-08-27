@@ -1,0 +1,675 @@
+[
+  {
+    "name": "AiVitalGuard",
+    "variables": {},
+    "secrets": {},
+    "nodes": [
+      {
+        "id": "aumavgv1rtu9r2xtp9ruqdh8",
+        "position": {
+          "x": 287,
+          "y": 216.50000000000003
+        },
+        "type": "trigger",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "mqtt-trigger",
+          "label": "MQTT Trigger",
+          "inputs": {},
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Triggers when messages arrive on MQTT topics",
+          "showRunningStatus": true,
+          "parameters": {
+            "protocol": "mqtts",
+            "qos": "0",
+            "host": "d20b650b186d488a9a7d95dfcb4c6954.s1.eu.hivemq.cloud",
+            "port": 8883,
+            "clientId": "AiVital_01",
+            "username": "makerboard_user",
+            "password": "19_04@NurCemre",
+            "topics": [
+              "hospital/aivital/sensors"
+            ]
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "qvmpgk26ysve6m1bhs2i9ke0",
+        "position": {
+          "x": 453.9314054278111,
+          "y": 268.22106174485384
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "function",
+          "label": "post2hf",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Executes custom JavaScript code on the input data.",
+          "showRunningStatus": true,
+          "parameters": {
+            "code": "// Retrieve the MQTT output object safely\nlet mqttOutput = outputs['MQTT Trigger'] || outputs.MQTT_Trigger;\n\n// Ensure we have data from the success.message property\nif (!mqttOutput || !mqttOutput.success || !mqttOutput.success.message) {\n    throw new Error(\"Cannot find MQTT data under 'success.message'.\");\n}\n\nlet sensorData = mqttOutput.success.message;\n\n// Create the correct payload for the Hugging Face AI\nlet aiPayload = {\n    \"bpm\": sensorData.BPM,\n    \"spo2\": sensorData.SpO2,\n    \"body_temp\": sensorData.Body_Temp,\n    \"age\": sensorData.Age,\n    \"gender\": sensorData.Gender,\n    \"weight\": sensorData.Weight,\n    \"height\": sensorData.Height,\n    \"bmi\": sensorData.BMI\n};\n\n// Output the formatted payload to be used by the POST HTTP node\nreturn { payload: aiPayload };"
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "nx3177yhtra04chjr4j7wjpm",
+        "position": {
+          "x": 785.2286596320077,
+          "y": 336.46639265472936
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "function",
+          "label": "get_url",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Executes custom JavaScript code on the input data.",
+          "showRunningStatus": true,
+          "parameters": {
+            "code": "// 1. Get the raw output from the post_data HTTP node\nlet postDataOut = outputs.post_data;\n\n// Ensure the node output exists\nif (!postDataOut) {\n    throw new Error(\"Cannot find output for 'post_data'. Check the node name.\");\n}\n\n// 2. Smart Search: Find where the event_id is hidden by the platform\nlet eventId = null;\n\nif (postDataOut.body && postDataOut.body.event_id) {\n    eventId = postDataOut.body.event_id;\n} else if (postDataOut.success && postDataOut.success.body && postDataOut.success.body.event_id) {\n    // This is likely how ABA Fusion wraps HTTP responses\n    eventId = postDataOut.success.body.event_id;\n} else if (postDataOut.success && postDataOut.success.event_id) {\n    eventId = postDataOut.success.event_id;\n}\n\n// 3. If we still can't find it, output the raw object so we can see its exact structure\nif (!eventId) {\n    return { \n        DEBUG_RAW_POST_DATA: postDataOut \n    };\n}\n\n// 4. Construct the dynamic GET URL to fetch the prediction results\nlet targetUrl = \"https://mounirbougui-vital-signs-api.hf.space/gradio_api/call/predict_vital_signs/\" + eventId;\n\n// 5. Output the URL so the next HTTP GET node can use it\nreturn { target_url: targetUrl };"
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "j5023ydq4mixi8698171gf3z",
+        "position": {
+          "x": 1076.321471411308,
+          "y": 379.4403597546701
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "function",
+          "label": "parse_ai",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Executes custom JavaScript code on the input data.",
+          "showRunningStatus": true,
+          "parameters": {
+            "code": "// 1. Get the raw output from the get_data HTTP node\nlet getDataOut = outputs.get_data;\n\n// 2. Smart Search: Find where the text body is hidden\nlet responseText = null;\nif (getDataOut.body) {\n    responseText = getDataOut.body;\n} else if (getDataOut.success && getDataOut.success.body) {\n    responseText = getDataOut.success.body;\n}\n\n// 3. Initialize the result object\nlet aiResult = {};\n\n// 4. Safely parse the Server-Sent Events (SSE) string\nif (typeof responseText === 'string') {\n    let lines = responseText.split(/\\r?\\n/);\n    \n    for (let i = 0; i < lines.length; i++) {\n        let currentLine = lines[i].trim();\n        \n        // Scenario A: AI completed successfully\n        if (currentLine.startsWith('event: complete')) {\n            let dataLine = lines[i + 1];\n            if (dataLine && dataLine.trim().startsWith('data: ')) {\n                let jsonString = dataLine.replace('data: ', '').trim();\n                try {\n                    let parsedArray = JSON.parse(jsonString);\n                    aiResult = parsedArray[0]; \n                } catch (e) {\n                    aiResult = { status: \"Error parsing AI data\", risk_code: -1 };\n                }\n            }\n            break; \n        }\n        \n        // Scenario B: Hugging Face threw an error (like ZeroGPU quota)\n        else if (currentLine.startsWith('event: error')) {\n            let dataLine = lines[i + 1];\n            if (dataLine && dataLine.trim().startsWith('data: ')) {\n                let jsonString = dataLine.replace('data: ', '').trim();\n                try {\n                    let errorData = JSON.parse(jsonString);\n                    aiResult = { \n                        status: \"API Quota Exceeded\", \n                        risk_code: -1,\n                        details: errorData.error \n                    };\n                } catch (e) {\n                    aiResult = { status: \"Unknown Hugging Face Error\", risk_code: -1 };\n                }\n            }\n            break;\n        }\n    }\n}\n\n// 5. Output the result for the next node\nreturn { ai_prediction: aiResult };"
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "v0rexlctekepro9kthns3wjs",
+        "position": {
+          "x": 1202.321471411308,
+          "y": 432.9403597546701
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "function",
+          "label": "grq_prmt",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Executes custom JavaScript code on the input data.",
+          "showRunningStatus": true,
+          "parameters": {
+            "code": "// 1. Retrieve sensor data safely from MQTT Trigger output\nlet mqttNode = outputs['MQTT Trigger'] || outputs.MQTT_Trigger;\nlet sensorData = (mqttNode && mqttNode.success && mqttNode.success.message) ? mqttNode.success.message : {};\n\n// 2. Retrieve AI prediction from parse_ai node\nlet parseAiOut = outputs.parse_ai ? outputs.parse_ai.ai_prediction : {};\n\n// 3. Extract key vital parameters\nlet devId = sensorData.device_id || \"AiVital_01\";\nlet bpm = sensorData.BPM ?? \"--\";\nlet spo2 = sensorData.SpO2 ?? \"--\";\nlet temp = sensorData.Body_Temp ?? \"--\";\nlet age = sensorData.Age ?? \"--\";\nlet gender = sensorData.Gender ?? \"--\";\nlet sos = sensorData.SOS_Alert ? \"YES (EMERGENCY)\" : \"NO\";\nlet fall = sensorData.Fall ? \"YES (FALL DETECTED)\" : \"NO\";\n\nlet aiStatus = parseAiOut.status || \"Unknown\";\nlet riskCode = parseAiOut.risk_code ?? -1;\nlet details = parseAiOut.details || \"None\";\n\n// 4. Define System & User Prompts\nlet systemPrompt = \"You are an expert Chief Medical Officer and AIoT Health Analyst. Your task is to generate a comprehensive, professional, and structured medical telemetry report based on patient sensor data and AI risk assessment.\";\n\nlet userPrompt = `Please generate a detailed patient health analysis report and clinical verdict based on the following real-time telemetry data:\n\n- Patient / Device ID: ${devId}\n- Demographics: Age ${age} yrs, Gender ${gender}\n- Vital Signs Telemetry:\n  * Heart Rate (BPM): ${bpm}\n  * Oxygen Saturation (SpO2): ${spo2}%\n  * Body Temperature: ${temp}°C\n  * SOS Alert Triggered: ${sos}\n  * Fall Detected: ${fall}\n\n- AI Model Verdict:\n  * Status: ${aiStatus}\n  * Risk Code: ${riskCode}\n  * Details / Notes: ${details}\n\nPlease write a complete, professional medical summary report suitable for clinical records, including:\n1. Clinical Assessment of Vitals.\n2. Risk Evaluation & Interpretation of the AI Model Verdict.\n3. Actionable Clinical Recommendations for medical staff.\n\nKeep the tone formal, structured, and ready to be inserted directly into an official medical document.`;\n\n// 5. Combine both into a single prompt string using line breaks (\\n)\nlet combinedPrompt = \"### SYSTEM INSTRUCTIONS:\\n\" + systemPrompt + \"\\n\\n### PATIENT DATA & TASK:\\n\" + userPrompt;\n\n// 6. Output the single combined prompt for the Groq node\nreturn {\n    groq_prompt: combinedPrompt\n};"
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "xkmby58kor6utvrujxgezku3",
+        "position": {
+          "x": 1445.3214714113078,
+          "y": 472.9403597546701
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "function",
+          "label": "check_alerts",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Executes custom JavaScript code on the input data.",
+          "showRunningStatus": true,
+          "parameters": {
+            "code": "// 1. Retrieve sensor data from MQTT Trigger\nlet mqttNode = outputs['MQTT Trigger'] || outputs.MQTT_Trigger;\nlet sensorData = (mqttNode && mqttNode.success && mqttNode.success.message) ? mqttNode.success.message : {};\n\n// 2. Retrieve AI prediction status\nlet parseAiOut = outputs.parse_ai ? outputs.parse_ai.ai_prediction : {};\nlet aiStatus = parseAiOut.status || \"\";\nlet riskCode = parseAiOut.risk_code ?? 0;\n\n// 3. Retrieve Groq LLM medical report text (if available)\n// Replace 'groq_node' with the exact name of your Groq LLM node in ABA Fusion\nlet groqNodeOut = outputs.groq_node || {};\nlet groqReport = groqNodeOut.text || groqNodeOut.response || groqNodeOut.groq_prompt || \"Detailed telemetry report unavailable.\";\n\n// 4. Define the 3 Alert Conditions\nlet isSOS = sensorData.SOS_Alert === true || sensorData.SOS_Alert === 1;\nlet isFall = sensorData.Fall === true || sensorData.Fall === 1;\n\n// Condition 3: High Risk from AI or critical keywords found in Groq report\nlet isHighRiskAI = (aiStatus.toLowerCase().includes(\"high risk\")) || (riskCode === 1) || (riskCode === -1);\nlet reportLower = typeof groqReport === 'string' ? groqReport.toLowerCase() : \"\";\nlet isCriticalMedical = reportLower.includes(\"critical\") || reportLower.includes(\"emergency\") || reportLower.includes(\"tachycardia\") || reportLower.includes(\"hypoxia\") || reportLower.includes(\"asphyxia\");\n\nlet vitalAlert = isHighRiskAI || isCriticalMedical;\n\n// 5. Overall Alert Trigger Flag\nlet triggerAlert = isSOS || isFall || vitalAlert;\n\nlet alertCategory = \"NORMAL\";\nlet alertMessage = \"All patient vitals are stable.\";\n\nif (isSOS) {\n    alertCategory = \"SOS EMERGENCY BUTTON PRESSED\";\n    alertMessage = \"CRITICAL ALERT: The patient has manually triggered the SOS emergency button on the device!\";\n} else if (isFall) {\n    alertCategory = \"FALL DETECTED\";\n    alertMessage = \"CRITICAL ALERT: The fall detection sensor has registered a sudden impact or fall!\";\n} else if (vitalAlert) {\n    alertCategory = \"HIGH RISK / VITAL ANOMALY\";\n    alertMessage = \"CRITICAL MEDICAL ALERT: AI model and telemetry indicate severe anomalies (e.g., irregular heart rate, oxygen drop, or respiratory distress).\";\n}\n\n// 6. Output clean structured data for Gmail and Slack nodes\nreturn {\n    alert_triggered: triggerAlert,\n    category: alertCategory,\n    message: alertMessage,\n    patient_id: sensorData.device_id || \"AiVital_01\",\n    bpm: sensorData.BPM ?? \"--\",\n    spo2: sensorData.SpO2 ?? \"--\",\n    body_temp: sensorData.Body_Temp ?? \"--\",\n    full_report: groqReport\n};"
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "cj6ps9mmg1ex7c5zo1bfmygm",
+        "position": {
+          "x": 1718.0351095106553,
+          "y": 383.81401602995163
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "function",
+          "label": "msg_payload",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Executes custom JavaScript code on the input data.",
+          "showRunningStatus": true,
+          "parameters": {
+            "code": "// ── 1. Extract Alert Data (from check_alerts or previous node)\nlet prevNode = outputs.check_alerts || outputs.Format_Alert || {};\nlet data = (prevNode.success && prevNode.success.return) ? prevNode.success.return : (prevNode.success ? prevNode.success : prevNode);\n\nconst devId   = data.patient_id || data.device_id || 'AiVital_01';\nconst bpm     = data.bpm ?? 'N/A';\nconst spo2    = data.spo2 ?? 'N/A';\nconst temp    = data.body_temp ?? data.temperature ?? 'N/A';\nconst category = data.category || 'URGENCE MÉDICALE';\nconst verdict = data.full_report || data.message || data.verdict || 'Assessment unavailable';\nconst subject = `🚨 AIoT MEDCORE — Alerte Critique (${devId})`;\nconst today   = new Date().toISOString().replace('T', ' ').split('.')[0];\n\n// ── 2. Extract Document ID (from Google Docs Create node) \n// (Make sure to replace 'Create' with the exact name of your Google Docs Node)\nconst createNode = outputs.Create || outputs.Google_Docs || {};\nconst docId = (createNode && createNode.success && createNode.success.documentId) \n  ? createNode.success.documentId \n  : (createNode.documentId || '');\n\nconst docLink = docId ? `https://docs.google.com/document/d/${docId}/edit` : '#';\n\n// ── 3. Build Professional HTML French Template ──\nconst htmlContent = `\n    <div style=\"font-family:Arial,sans-serif;max-width:600px;margin:auto;background:#f4f4f4;padding:20px;\">\n      <div style=\"background:#ff1744;padding:20px;border-radius:8px 8px 0 0;text-align:center;\">\n        <h2 style=\"color:#fff;margin:0;\">🚨 Alerte Médicale — AIoT MedCore</h2>\n      </div>\n      <div style=\"background:#fff;padding:24px;border-radius:0 0 8px 8px;\">\n        <p style=\"color:#333;\">Bonjour Docteur,</p>\n        <p style=\"color:#555;\">Une anomalie critique ou un signal d'urgence a été détecté sur le boîtier du patient. Une intervention immédiate est requise.</p>\n        \n        <table style=\"width:100%;border-collapse:collapse;margin:16px 0;\">\n          <tr style=\"background:#f8f9fa;\">\n            <td style=\"padding:10px;font-weight:bold;color:#333;\">📡 Appareil / Patient</td>\n            <td style=\"padding:10px;color:#555;\">${devId}</td>\n          </tr>\n          <tr>\n            <td style=\"padding:10px;font-weight:bold;color:#333;\">🕐 Horodatage</td>\n            <td style=\"padding:10px;color:#555;\">${today}</td>\n          </tr>\n          <tr style=\"background:#f8f9fa;\">\n            <td style=\"padding:10px;font-weight:bold;color:#333;\">❤️ Fréquence Cardiaque (BPM)</td>\n            <td style=\"padding:10px;color:#555;font-weight:bold;color:#ff4081;\">${bpm} BPM</td>\n          </tr>\n          <tr>\n            <td style=\"padding:10px;font-weight:bold;color:#333;\">💧 Saturation Oxygène (SpO2)</td>\n            <td style=\"padding:10px;color:#555;font-weight:bold;color:#00e5ff;\">${spo2} %</td>\n          </tr>\n          <tr style=\"background:#f8f9fa;\">\n            <td style=\"padding:10px;font-weight:bold;color:#333;\">🌡️ Température Corporelle</td>\n            <td style=\"padding:10px;color:#555;\">${temp} °C</td>\n          </tr>\n          <tr>\n            <td style=\"padding:10px;font-weight:bold;color:#333;\">⚠️ Type d'Alerte</td>\n            <td style=\"padding:10px;font-weight:bold;color:#ff1744;\">\n              ${category}\n            </td>\n          </tr>\n          <tr style=\"background:#f8f9fa;\">\n            <td style=\"padding:10px;font-weight:bold;color:#333;\">🤖 Analyse Clinique & Verdict</td>\n            <td style=\"padding:10px;color:#555;font-size:13px;line-height:1.4;\">${verdict.replace(/\\n/g, '<br>')}</td>\n          </tr>\n        </table>\n        \n        <div style=\"text-align:center;margin:24px 0;\">\n          <a href=\"${docLink}\"\n             style=\"background:#2979ff;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;font-size:15px;display:inline-block;font-weight:bold;\">\n            📄 Ouvrir le Dossier Médical (Google Doc)\n          </a>\n        </div>\n        \n        <p style=\"color:#aaa;font-size:11px;text-align:center;\">\n          Système Automatisé de Surveillance Médicale — AIoT MedCore\n        </p>\n      </div>\n    </div>\n`;\n\n// ── 4. Return block mapped perfectly for your Gmail & Slack Nodes ──\nreturn {\n  to: [\"bouguimounir875@gmail.com\"],\n  subject: subject,\n  html: htmlContent,\n  slack_message: `🚨 *${category}* | Patient: *${devId}* | BPM: ${bpm} | SpO2: ${spo2}% \\n📄 Rapport Google Doc: ${docLink}`\n};"
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "vo8un0tkiwxtcwupbwap6wrp",
+        "position": {
+          "x": 618.7261771100567,
+          "y": 318.8549199139935
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "http-request",
+          "label": "post_data",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Send normalized sensor data to Hugging Face API",
+          "showRunningStatus": true,
+          "parameters": {
+            "method": "POST",
+            "authType": "none",
+            "responseType": "json",
+            "bodyType": "json",
+            "ignoreHttpErrors": false,
+            "url": "https://mounirbougui-vital-signs-api.hf.space/gradio_api/call/v2/predict_vital_signs",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "$expr": "output",
+              "node": "post2hf",
+              "outputId": "success",
+              "path": "payload"
+            }
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "oc2cee30m86d5u58til94i3k",
+        "position": {
+          "x": 940.8338444742769,
+          "y": 358.3827919489431
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "http-request",
+          "label": "get_data",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Send normalized sensor data to Hugging Face API",
+          "showRunningStatus": true,
+          "parameters": {
+            "method": "GET",
+            "authType": "none",
+            "responseType": "text",
+            "ignoreHttpErrors": false,
+            "url": {
+              "$expr": "output",
+              "node": "get_url",
+              "outputId": "success",
+              "path": "target_url"
+            },
+            "headers": {}
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "dtxdn6qhvquezl3bfwe504d7",
+        "position": {
+          "x": 1325.5830067545548,
+          "y": 457.85194377152123
+        },
+        "type": "agent-llm",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "groq-llm",
+          "label": "Groq LLM",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "A node that uses Groq's ultra-fast LLM inference.",
+          "showRunningStatus": true,
+          "parameters": {
+            "apiKey": " ",
+            "systemPrompt": {
+              "$expr": "output",
+              "node": "grq_prmt",
+              "outputId": "success",
+              "path": "groq_prompt"
+            }
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "iigdm3akvx1cax6a5cj2cnon",
+        "position": {
+          "x": 1561.7536390017017,
+          "y": 490.3623416307686
+        },
+        "type": "utility",
+        "width": 64,
+        "height": 68,
+        "data": {
+          "name": "if-else",
+          "label": "If-Else",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "true": {
+              "label": "True"
+            },
+            "false": {
+              "label": "False"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Executes different branches based on a condition",
+          "showRunningStatus": false,
+          "parameters": {
+            "condition": "outputs.check_alerts.alert_triggered === true"
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "qshdmrpwf8fjgh0rtf268vyi",
+        "position": {
+          "x": 1854.5044873162478,
+          "y": 325.45529591586654
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "gmail",
+          "label": "Gmail",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Consolidated Gmail operations (send/get/trash/delete/move/markRead/markUnread/createLabel/listLabels)",
+          "showRunningStatus": true,
+          "parameters": {
+            "operation": "send",
+            "clientId": "",
+            "clientSecret": "_",
+            "refreshToken": "",
+            "bodyType": "html",
+            "to": [
+              ""
+            ],
+            "from": " ",
+            "html": {
+              "$expr": "output",
+              "node": "msg_payload",
+              "outputId": "success",
+              "path": "html"
+            },
+            "subject": {
+              "$expr": "output",
+              "node": "msg_payload",
+              "outputId": "success",
+              "path": "subject"
+            }
+          },
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "kedhiqo1uzwnz8cegsmt2ms3",
+        "position": {
+          "x": 1877.355788961251,
+          "y": 596.4738297705669
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "slack-action",
+          "label": "Slack Action",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Perform Slack operations",
+          "showRunningStatus": true,
+          "parameters": {},
+          "_morphing": false
+        },
+        "selected": false
+      },
+      {
+        "id": "vukgki62aeq82a87j0y9wjwe",
+        "position": {
+          "x": 1611.6109486398718,
+          "y": 270.47126291869165
+        },
+        "type": "action",
+        "width": 64,
+        "height": 64,
+        "data": {
+          "name": "google-docs",
+          "label": "Google Docs",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success"
+            },
+            "error": {
+              "label": "Error"
+            }
+          },
+          "description": "Create, read, and update Google Docs documents. Manage document content and formatting.",
+          "showRunningStatus": true,
+          "parameters": {
+            "operation": "createDocument",
+            "clientId": "",
+            "clientSecret": " ",
+            "refreshToken": ""
+          },
+          "_morphing": false
+        },
+        "selected": true
+      }
+    ],
+    "connections": [
+      {
+        "source": "aumavgv1rtu9r2xtp9ruqdh8",
+        "sourceHandle": "success",
+        "target": "x7i94p2t7005aiwnvwt20wmj",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__aumavgv1rtu9r2xtp9ruqdh8success-x7i94p2t7005aiwnvwt20wmjinput",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "aumavgv1rtu9r2xtp9ruqdh8",
+        "sourceHandle": "success",
+        "target": "qvmpgk26ysve6m1bhs2i9ke0",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__aumavgv1rtu9r2xtp9ruqdh8success-qvmpgk26ysve6m1bhs2i9ke0input",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "qvmpgk26ysve6m1bhs2i9ke0",
+        "sourceHandle": "success",
+        "target": "vo8un0tkiwxtcwupbwap6wrp",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__qvmpgk26ysve6m1bhs2i9ke0success-vo8un0tkiwxtcwupbwap6wrpinput",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "vo8un0tkiwxtcwupbwap6wrp",
+        "sourceHandle": "success",
+        "target": "nx3177yhtra04chjr4j7wjpm",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__vo8un0tkiwxtcwupbwap6wrpsuccess-nx3177yhtra04chjr4j7wjpminput",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "nx3177yhtra04chjr4j7wjpm",
+        "sourceHandle": "success",
+        "target": "oc2cee30m86d5u58til94i3k",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__nx3177yhtra04chjr4j7wjpmsuccess-oc2cee30m86d5u58til94i3kinput",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "oc2cee30m86d5u58til94i3k",
+        "sourceHandle": "success",
+        "target": "j5023ydq4mixi8698171gf3z",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__oc2cee30m86d5u58til94i3ksuccess-j5023ydq4mixi8698171gf3zinput",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "j5023ydq4mixi8698171gf3z",
+        "sourceHandle": "success",
+        "target": "v0rexlctekepro9kthns3wjs",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__j5023ydq4mixi8698171gf3zsuccess-v0rexlctekepro9kthns3wjsinput",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "v0rexlctekepro9kthns3wjs",
+        "sourceHandle": "success",
+        "target": "dtxdn6qhvquezl3bfwe504d7",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__v0rexlctekepro9kthns3wjssuccess-dtxdn6qhvquezl3bfwe504d7input",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "dtxdn6qhvquezl3bfwe504d7",
+        "sourceHandle": "success",
+        "target": "xkmby58kor6utvrujxgezku3",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__dtxdn6qhvquezl3bfwe504d7success-xkmby58kor6utvrujxgezku3input",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "xkmby58kor6utvrujxgezku3",
+        "sourceHandle": "success",
+        "target": "iigdm3akvx1cax6a5cj2cnon",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__xkmby58kor6utvrujxgezku3success-iigdm3akvx1cax6a5cj2cnoninput",
+        "data": {
+          "isAnimated": false
+        }
+      },
+      {
+        "source": "cj6ps9mmg1ex7c5zo1bfmygm",
+        "sourceHandle": "success",
+        "target": "qshdmrpwf8fjgh0rtf268vyi",
+        "targetHandle": "input",
+        "type": "directed",
+        "id": "xy-edge__cj6ps9mmg1ex7c5zo1bfmygmsuccess-qshdmrpwf8fjgh0rtf268vyiinput",
+        "data": {
+          "isAnimated": false
+        }
+      }
+    ],
+    "status": "stopped",
+    "tracingEnabled": true,
+    "userId": "05360d97-042f-4daf-b517-57d1aeef3529",
+    "version": 1,
+    "createdAt": 1786878309572,
+    "updatedAt": 1786968492403,
+    "publishedNames": [],
+    "previousStatus": "running"
+  }
+]
