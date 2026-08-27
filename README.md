@@ -13,12 +13,7 @@ AiVital Health Monitor est une solution complète de surveillance médicale conn
 3. [Composants matériels](#-composants-matériels)
 4. [Stack logicielle](#-stack-logicielle)
 5. [Installation & Configuration](#-installation--configuration)
-6. [Utilisation](#-utilisation)
-7. [Tests & Validation](#-tests--validation)
-8. [Structure du projet](#-structure-du-projet)
-9. [Sécurité & Confidentialité](#-sécurité--confidentialité)
-10. [Limites & Améliorations futures](#-limites--améliorations-futures)
-11. [Contributeurs](#-contributeurs)
+
 
 ---
 
